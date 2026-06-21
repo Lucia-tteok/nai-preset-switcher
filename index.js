@@ -1,13 +1,13 @@
-/* ===== NAI预设一键切换 · 更新中心模块（版本3 / Git URL 扩展版专用） =====
-   功能：在脚本面板顶部显示版本号标签 + ⓘ 按钮；点击弹出更新中心，
+/* ===== NAI预设一键切换 · 更新中心模块 v2（版本3 / Git URL 扩展版专用） =====
+   功能：在脚本面板头部标题旁显示版本号标签 + ⓘ 按钮；点击弹出更新中心，
    可检查是否最新、查看更新内容、并自行选择是否更新。
-   原理：检查/更新走 SillyTavern 自带接口 /api/extensions/version 与 /api/extensions/update；
-   版本号与更新日志读取远程 manifest.json。纯增量代码，不影响下方原有功能。 */
+   原理：检查/更新走 SillyTavern 自带接口；版本号与更新日志读取远程 manifest.json。
+   v2 改进：正确定位 .nl-head 内的 .nl-title 元素，在标题旁插入而非面板顶部。 */
 (function () {
   "use strict";
-  var LOCAL_VERSION = "1.4.0";                 // 与 manifest.json 的 version 保持一致
-  var EXT_NAME = "/nai-preset-switcher";        // 扩展文件夹名，服务端会补全为 third-party/<name>
-  var PANEL_ID = "nai-lib-panel-v2";            // 原脚本主面板的 id
+  var LOCAL_VERSION = "1.4.1";
+  var EXT_NAME = "/nai-preset-switcher";
+  var PANEL_ID = "nai-lib-panel-v2";
   var BAR_ID = "nai-update-bar";
   var MODAL_ID = "nai-update-modal";
   var MANIFEST_URLS = [
@@ -15,8 +15,13 @@
     "https://cdn.jsdelivr.net/gh/Lucia-tteok/nai-preset-switcher@main/manifest.json"
   ];
 
+  /* === 环境工具 === */
   function W() { try { return window.parent || window; } catch (e) { return window; } }
-  function D() { try { return W().document || document; } catch (e) { return document; } }
+  function D() {
+    // 原脚本用 s = window.parent && window.parent.document || document，保持一致
+    try { if (window.parent && window.parent.document) return window.parent.document; } catch (e) {}
+    return document;
+  }
   function getOrigin() {
     try { if (W().location && W().location.origin) return W().location.origin; } catch (e) {}
     try { return location.origin; } catch (e) {}
@@ -34,21 +39,22 @@
   function toast(type, msg, title) {
     var w = W();
     try { if (w.toastr && typeof w.toastr[type] === "function") { w.toastr[type](msg, title || ""); return; } } catch (e) {}
-    try { console.log("[NAI更新] " + (title ? title + ": " : "") + msg); } catch (e) {}
+    console.log("[NAI更新] " + (title ? title + ": " : "") + msg);
   }
   function apiBody() { return JSON.stringify({ extensionName: EXT_NAME, global: false }); }
 
-  // 拉取远程 manifest（多源 + 时间戳防缓存）
+  /* === 远程 manifest === */
   async function fetchRemoteManifest() {
     for (var i = 0; i < MANIFEST_URLS.length; i++) {
       try {
         var res = await fetch(MANIFEST_URLS[i] + "?_=" + Date.now(), { cache: "no-store" });
-        if (res && res.ok) { return await res.json(); }
+        if (res && res.ok) return await res.json();
       } catch (e) {}
     }
     return null;
   }
-  // 检查更新：服务端判断是否最新（实时），远程 manifest 提供版本号与更新日志
+
+  /* === 检查更新 === */
   async function checkUpdate() {
     var result = { isUpToDate: null, remoteVersion: "", changelog: "" };
     var origin = getOrigin();
@@ -67,6 +73,8 @@
     if (mani) { result.remoteVersion = mani.version || ""; result.changelog = mani.changelog || ""; }
     return result;
   }
+
+  /* === 执行更新 === */
   async function doUpdate(btn) {
     var origin = getOrigin();
     if (!origin) { toast("error", "无法获取酒馆地址，请用酒馆扩展面板手动更新。", "NAI预设一键切换"); return; }
@@ -94,7 +102,7 @@
     }
   }
 
-  // ---------- UI ----------
+  /* === UI 辅助 === */
   function el(tag, css, text) {
     var d = D().createElement(tag);
     if (css) d.style.cssText = css;
@@ -105,10 +113,12 @@
     var m = D().getElementById(MODAL_ID);
     if (m && m.parentNode) m.parentNode.removeChild(m);
   }
+
+  /* === 更新中心弹窗 === */
   async function openModal() {
     var doc = D();
     closeModal();
-    var mask = el("div", "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;");
+    var mask = el("div", "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;");
     mask.id = MODAL_ID;
     mask.addEventListener("click", function (ev) { if (ev.target === mask) closeModal(); });
 
@@ -120,17 +130,14 @@
     x.addEventListener("click", closeModal);
     head.appendChild(x);
     box.appendChild(head);
-
     box.appendChild(el("div", "margin:4px 0 12px;", "当前版本：v" + LOCAL_VERSION));
 
     var status = el("div", "padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.06);margin-bottom:12px;", "正在检查更新…");
     box.appendChild(status);
-
     var logTitle = el("div", "font-weight:600;margin:6px 0;display:none;", "📢 更新内容");
     var logBox = el("div", "white-space:pre-wrap;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);display:none;");
     box.appendChild(logTitle);
     box.appendChild(logBox);
-
     mask.appendChild(box);
     doc.body.appendChild(mask);
 
@@ -152,7 +159,6 @@
       status.appendChild(btn);
       status.style.background = "rgba(255,209,102,.12)";
     } else {
-      // 服务端接口拿不到（可能不是 git 安装 / 权限问题），降级用版本号比对
       if (info.remoteVersion && info.remoteVersion !== LOCAL_VERSION) {
         status.textContent = "🔔 远程版本 v" + info.remoteVersion + " 与本地 v" + LOCAL_VERSION + " 不一致，建议在酒馆扩展面板手动更新。";
         status.style.background = "rgba(255,209,102,.12)";
@@ -162,23 +168,45 @@
     }
   }
 
-  // 在脚本面板顶部插入「版本标签 + ⓘ」条
+  /* === 在面板头部 .nl-head 里的标题旁插入「v版本 ⓘ」 === */
   function ensureBar() {
     var doc = D();
+    // 面板可能还没创建（懒加载，用户点菜单按钮才创建）
     var panel = doc.getElementById(PANEL_ID);
     if (!panel) return;
-    if (panel.querySelector("#" + BAR_ID)) return;
-    var bar = el("div", "display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 4px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.12);");
+    // 已插入过则跳过
+    if (doc.getElementById(BAR_ID)) return;
+    // 找 .nl-head 里的 .nl-title
+    var nlHead = panel.querySelector(".nl-head");
+    if (!nlHead) return;
+    var nlTitle = nlHead.querySelector(".nl-title");
+    if (!nlTitle) return;
+
+    // 创建版本标签 + i 按钮的容器
+    var bar = el("span", "display:inline-flex;align-items:center;gap:6px;margin-left:8px;vertical-align:middle;");
     bar.id = BAR_ID;
-    var tag = el("span", "padding:2px 10px;border-radius:6px;background:rgba(255,255,255,.12);font-size:13px;font-weight:600;", "v" + LOCAL_VERSION);
-    var info = el("span", "width:22px;height:22px;border-radius:50%;background:#1c1c1c;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-style:italic;font-weight:700;cursor:pointer;font-size:14px;border:1px solid rgba(255,255,255,.25);", "i");
+    var tag = el("span", "padding:1px 8px;border-radius:5px;background:rgba(120,140,160,.18);font-size:11px;font-weight:600;color:inherit;", "v" + LOCAL_VERSION);
+    var info = el("span", "width:20px;height:20px;border-radius:50%;background:rgba(120,140,160,.22);color:inherit;display:inline-flex;align-items:center;justify-content:center;font-style:italic;font-weight:700;cursor:pointer;font-size:12px;border:1px solid rgba(120,140,160,.3);flex-shrink:0;");
+    info.textContent = "i";
     info.title = "检查更新 / 更新内容";
-    info.addEventListener("click", openModal);
+    info.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      openModal();
+    });
     bar.appendChild(tag);
     bar.appendChild(info);
-    panel.insertBefore(bar, panel.firstChild);
+
+    // 插到标题后面
+    nlTitle.parentNode.insertBefore(bar, nlTitle.nextSibling);
   }
-  setInterval(function () { try { ensureBar(); } catch (e) {} }, 1500);
+
+  // 每 1 秒检查一次，直到成功插入
+  var _barTimer = setInterval(function () {
+    try {
+      ensureBar();
+      // 插入成功后不要停止定时器：面板可能被重建（如切换扩展），需要持续检查
+    } catch (e) {}
+  }, 1000);
 })();
 /* ===== 更新中心模块结束，以下为原有脚本 ===== */
 
