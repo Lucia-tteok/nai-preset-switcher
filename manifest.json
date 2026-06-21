@@ -6,7 +6,7 @@
   "dependencies": [],
   "js": "index.js",
   "css": "",
-  "author": "Lucia-tteok",
+  "author": "毫无疑问你就是我的天使",
   "version": "1.4.0",
   "homePage": "https://github.com/Lucia-tteok/nai-preset-switcher",
   "changelog": "v1.4.0\n· 新增更新中心：点击面板标题旁的版本号即可弹出更新中心\n· 自动检测更新：有新版本时会在版本号旁显示提示\n· 检查与更新走酒馆自带接口，更新后刷新页面即可生效\n· 新增日夜切换功能\n· 新增长按拖动预设更改位置\n· 新增随机抽取预设卡片\n· 修复了一些bug"
