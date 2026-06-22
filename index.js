@@ -980,7 +980,7 @@
                 n = s.createElement("style");
             n.id = t, n.textContent = e, s.head.appendChild(n)
         }(), n = s.createElement("div"), n.id = r, n.innerHTML = `\n<div class="nl-box"><div class="nl-head"><span class="nl-title">${e}</span><div class="nl-tabs"><div class="nl-tab active" data-tab="lib">收藏库</div><div class="nl-tab" data-tab="parse">导入预设</div><div class="nl-tab" data-tab="vibe">Vibe 库</div></div><span class="nl-theme" title="日夜切换">◐</span><span class="nl-close">&times;</span></div><div class="nl-body" data-view="lib"></div><div class="nl-body" data-view="parse" style="display:none;"></div><div class="nl-body" data-view="vibe" style="display:none;"></div>\n</div>`, s.body.appendChild(n), n.querySelector(".nl-close").addEventListener("click", () => {
-            n.style.display = "none"
+            nlConfirmVibePending() && (n.style.display = "none")
         }), (function() {
             try {
                 var _ns = _getNaiSettings();
@@ -1001,7 +1001,7 @@
                 } catch (e) {}
             })
         })(), n.addEventListener("click", e => {
-            e.target === n && (n.style.display = "none")
+            e.target === n && nlConfirmVibePending() && (n.style.display = "none")
         }), n.querySelectorAll(".nl-tab").forEach(e => {
             e.addEventListener("click", () => M(e.getAttribute("data-tab")))
         }), n)
@@ -1009,9 +1009,10 @@
 
     function M(e) {
         const t = s.getElementById(r);
-        t && (t.querySelectorAll(".nl-tab").forEach(t => t.classList.toggle("active", t.getAttribute("data-tab") === e)), t.querySelectorAll(".nl-body").forEach(t => {
+        if (!t || !nlConfirmVibePending()) return;
+        t.querySelectorAll(".nl-tab").forEach(t => t.classList.toggle("active", t.getAttribute("data-tab") === e)), t.querySelectorAll(".nl-body").forEach(t => {
             t.style.display = t.getAttribute("data-view") === e ? "" : "none"
-        }), "parse" === e ? B() : "vibe" === e ? le() : R())
+        }), "parse" === e ? B() : "vibe" === e ? le() : R()
     }
 
     function B() {
@@ -2260,6 +2261,24 @@
         var n = re() || {};
         return !(!e || !n[e]) && (oe = e, ie(e), t || oeRefreshDetailVibeViews(e), !0)
     }
+
+    function nlHasVibePending() {
+        return !!(nlVibePending && Object.keys(nlVibePending).length)
+    }
+
+    function nlSaveVibePending() {
+        var e = re(),
+            t = e && e[oe],
+            n = nlVibePending ? Object.keys(nlVibePending) : [];
+        return !!(t && t.vibes && n.length) && (n.forEach(function(e) {
+            var n = parseInt(e, 10);
+            t.vibes[n] && (t.vibes[n].strength = nlVibePending[e])
+        }), t.updatedAt = Date.now(), X(), oe === oeGetActiveGroup() && ie(oe), oeRefreshDetailVibeViews(oe), nlVibePending = {}, !0)
+    }
+
+    function nlConfirmVibePending() {
+        return !nlHasVibePending() || (confirm("当前 Vibe 叠加组设置未保存，是否保存？") ? nlSaveVibePending() || (nlVibePending = {}, !0) : (nlVibePending = {}, !0))
+    }
     var oe = null,
         _vlf = !1;
 
@@ -2470,7 +2489,7 @@
                 });
                 var i = e.querySelector("#nl-vibe-groupsel");
                 i && i.addEventListener("change", function() {
-                    oeSetCurrentGroup(i.value), le()
+                    nlConfirmVibePending() ? (oe = i.value, le()) : i.value = oe
                 });
                 var o = e.querySelector("#nl-vibe-newgroup");
                 o && o.addEventListener("click", function() {
@@ -2511,32 +2530,19 @@
                 c && c.addEventListener("click", function() {
                     oeSetCurrentGroup(oe) ? (E("已设为智绘姬当前组「" + oe + "」", "success"), le()) : E("切换失败", "error")
                 });
-                nlVibePending = {}, e.querySelectorAll(".nl-slot-strength").forEach(function(e) {
+                nlVibePending = nlVibePending || {}, e.querySelectorAll(".nl-slot-strength").forEach(function(e) {
                         e.addEventListener("input", function() {
                             var t = parseInt(e.getAttribute("data-slot"), 10),
-                                n = parseFloat(e.value),
-                                r = re(),
-                                a = r && r[oe],
-                                o = a && a.vibes && a.vibes[t];
+                                n = parseFloat(e.value);
                             nlVibePending[t] = n;
-                            o && (o.strength = n, a.updatedAt = Date.now(), X(), oeSetCurrentGroup(oe));
-                            var i = e.parentNode.querySelector(".nl-slot-strv");
-                            i && (i.textContent = n.toFixed(2))
+                            var r = e.parentNode.querySelector(".nl-slot-strv");
+                            r && (r.textContent = n.toFixed(2))
                         })
                     }),
                     function() {
                         var sg = e.querySelector("#nl-vibe-savegroup");
                         sg && sg.addEventListener("click", function() {
-                            var r = re(),
-                                a = r && r[oe],
-                                ks = Object.keys(nlVibePending);
-                            if (a && a.vibes && ks.length) {
-                                ks.forEach(function(k) {
-                                    var ix = parseInt(k, 10);
-                                    if (a.vibes[ix]) a.vibes[ix].strength = nlVibePending[ix]
-                                }), a.updatedAt = Date.now(), X(), E("已保存", "success")
-                            } else E("没有需要保存的修改", "info");
-                            nlVibePending = {}
+                            nlSaveVibePending() ? E("已保存", "success") : E("没有需要保存的修改", "info")
                         })
                     }(), e.querySelectorAll(".nl-vibe-slot-del").forEach(function(e) {
                         e.addEventListener("click", function() {
