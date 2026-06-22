@@ -401,13 +401,76 @@
         } catch (e) {}
     }
 
+    function _mirrorVibeImage(e, t) {
+        var n = _getNaiSettings();
+        if (!n || !e || !t) return;
+        n.vibeImages && "object" == typeof n.vibeImages || (n.vibeImages = {});
+        n.vibeImages[e] = {
+            id: e,
+            data: t,
+            date: Date.now()
+        };
+        _saveNaiSettings()
+    }
+
+    async function _restoreVibeImage(e) {
+        try {
+            var t = _getNaiSettings(),
+                n = t && t.vibeImages && t.vibeImages[e];
+            return n && n.data ? (await A(e, n.data, !0), n) : null
+        } catch (e) {
+            return null
+        }
+    }
+
+    async function _syncVibeImageMirror() {
+        var ns = _getNaiSettings();
+        if (!ns) return;
+        try {
+            if (ns.vibeImages && "object" == typeof ns.vibeImages) {
+                var savedIds = Object.keys(ns.vibeImages);
+                for (var i = 0; i < savedIds.length; i++) {
+                    var saved = ns.vibeImages[savedIds[i]];
+                    saved && saved.id && saved.data && await A(saved.id, saved.data, !0)
+                }
+            }
+            if (!ns.__vibeImagesMirrored) {
+                var oldVibeImages = await new Promise(function(resolve) {
+                    var req = indexedDB.open("chatu8_config_images", 2);
+                    req.onupgradeneeded = function(ev) {
+                        var db = ev.target.result;
+                        if (!db.objectStoreNames.contains("config_images")) db.createObjectStore("config_images", { keyPath: "id" });
+                    };
+                    req.onsuccess = function(ev) {
+                        try {
+                            var db = ev.target.result;
+                            var tx = db.transaction("config_images", "readonly");
+                            var all = tx.objectStore("config_images").getAll();
+                            all.onsuccess = function() { resolve(all.result || []); };
+                            all.onerror = function() { resolve([]); };
+                        } catch (e) { resolve([]); }
+                    };
+                    req.onerror = function() { resolve([]); };
+                });
+                if (oldVibeImages.length) {
+                    ns.vibeImages && "object" == typeof ns.vibeImages || (ns.vibeImages = {});
+                    oldVibeImages.forEach(function(e) {
+                        e && e.id && e.data && (ns.vibeImages[e.id] = e)
+                    });
+                }
+                ns.__vibeImagesMirrored = true;
+            }
+            _saveNaiSettings()
+        } catch (e) {}
+    }
+
     /* --- 从 localStorage / IndexedDB 一次性迁移旧数据 --- */
     async function _migrateOldData() {
         if (_naiSettingsReady) return;
         var ns = _getNaiSettings();
         if (!ns) return;
         /* 标记已完成迁移 */
-        if (ns.__migrated) { _naiSettingsReady = true; return; }
+        if (ns.__migrated) { _naiSettingsReady = true; await _syncVibeImageMirror(); return; }
 
         /* 1) 迁移分类 */
         try {
@@ -453,6 +516,8 @@
                 });
             }
         } catch (e) {}
+
+        await _syncVibeImageMirror();
 
         ns.__migrated = true;
         _naiSettingsReady = true;
@@ -715,23 +780,26 @@
     function _() {
         return "cfgimg_" + S()
     }
-    async function A(e, t) {
-        const n = await q();
-        return new Promise((r, a) => {
-            const i = n.transaction(j, "readwrite");
-            i.objectStore(j).put({
+    async function A(e, t, n) {
+        const r = await q();
+        return new Promise((a, i) => {
+            const o = r.transaction(j, "readwrite");
+            o.objectStore(j).put({
                 id: e,
                 data: t,
                 date: Date.now()
-            }), i.oncomplete = () => r(), i.onerror = e => a(e.target.error)
+            }), o.oncomplete = () => {
+                n || _mirrorVibeImage(e, t), a()
+            }, o.onerror = e => i(e.target.error)
         })
     }
     async function D(e) {
-        const t = await q();
-        return new Promise((n, r) => {
-            const a = t.transaction(j, "readonly").objectStore(j).get(e);
-            a.onsuccess = () => n(a.result), a.onerror = e => r(e.target.error)
-        })
+        const t = await q(),
+            n = await new Promise((n, r) => {
+                const a = t.transaction(j, "readonly").objectStore(j).get(e);
+                a.onsuccess = () => n(a.result), a.onerror = e => r(e.target.error)
+            });
+        return n || await _restoreVibeImage(e)
     }
     async function z(e) {
         const t = await q();
@@ -2593,4 +2661,5 @@
     setInterval(ce, 2e3), setTimeout(ce, 500);
     /* 启动时执行旧数据迁移 */
     setTimeout(function() { _migrateOldData().catch(function(e) { console.log("[NAI] 迁移旧数据失败:", e); }); }, 1000);
+setTimeout(function() { _syncVibeImageMirror().catch(function(e) { console.log("[NAI] 同步 Vibe 数据失败:", e); }); }, 1800);
 }();
