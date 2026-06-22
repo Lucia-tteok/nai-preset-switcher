@@ -418,26 +418,85 @@
 
     function _shouldUseChatu8ServerStorage() {
         var st = _getChatu8Settings();
-        return !(!st || st.configImageStorageMode !== "server" && st.configImageStorageMode !== "hybrid" && !st.storeConfigImagesInServer)
+        return !!st
     }
 
-    function _mirrorVibeImage(e, t) {
-        var n = _getChatu8ServerStorage();
-        if (n && e && t) {
-            n[e] = {
-                id: e,
-                data: t,
-                date: Date.now()
-            };
-            _saveNaiSettings()
+    function _getStHeaders() {
+        var w = window.parent || window;
+        try {
+            if ("function" == typeof w.getRequestHeaders) return w.getRequestHeaders()
+        } catch (e) {}
+        try {
+            var ctx = w.SillyTavern && w.SillyTavern.getContext && w.SillyTavern.getContext();
+            if (ctx && "function" == typeof ctx.getRequestHeaders) return ctx.getRequestHeaders()
+        } catch (e) {}
+        var h = { "Content-Type": "application/json" };
+        try { w.token && (h.Authorization = "Bearer " + w.token) } catch (e) {}
+        return h
+    }
+
+    function _utf8ToBase64(e) {
+        try { return btoa(unescape(encodeURIComponent(e))) }
+        catch (t) { return btoa(e) }
+    }
+
+    function _stripDataUrl(e) {
+        return "string" == typeof e && e.indexOf(",") > -1 ? e.split(",").pop() : e
+    }
+
+    async function _uploadChatu8Config(e, t, n, r) {
+        var body = { image: t, format: n || "png", ch_name: "config" };
+        r && (body.filename = r);
+        var res = await fetch("/api/files/upload", {
+            method: "POST",
+            headers: _getStHeaders(),
+            body: JSON.stringify(body),
+            credentials: "include"
+        });
+        if (!res || !res.ok) throw new Error("upload failed: " + (res && res.status));
+        var json = await res.json();
+        if (!json || !json.path) throw new Error("upload missing path");
+        return json.path
+    }
+
+    function _getImageFormat(e) {
+        var t = "string" == typeof e && e.match(/^data:image\/([^;,]+)/i);
+        return t ? ("jpeg" === t[1].toLowerCase() ? "jpg" : t[1].toLowerCase()) : "png"
+    }
+
+    async function _mirrorVibeImage(e, t, n) {
+        var r = _getChatu8ServerStorage();
+        if (!r || !e || !t) return !1;
+        if (r[e] && r[e].path) return !0;
+        try {
+            var a = "text" === n, i = a ? _utf8ToBase64(t) : _stripDataUrl(t), o = a ? "png" : _getImageFormat(t), l = (a ? "vibe_" : "vibe_preview_") + e;
+            r[e] = { path: await _uploadChatu8Config(e, i, o, l), date: Date.now() };
+            a && (r[e].type = "text");
+            _saveNaiSettings();
+            return !0
+        } catch (a) {
+            return !1
         }
     }
 
     async function _restoreVibeImage(e) {
         try {
-            var t = _getChatu8ServerStorage(),
-                n = t && t[e];
-            return n && n.data ? (await A(e, n.data, !0), n) : null
+            var t = _getChatu8ServerStorage(), n = t && t[e];
+            if (!n) return null;
+            if (n.data) return await A(e, n.data, !0), n;
+            if (n.path) {
+                var r = await fetch(n.path);
+                if (!r || !r.ok) return n;
+                if ("text" === n.type) {
+                    var a = await r.text();
+                    try { a.indexOf("data:") === 0 && (a = decodeURIComponent(escape(atob(a.split(",").pop())))) } catch (e) {}
+                    await A(e, a, !0)
+                } else {
+                    var i = await r.blob(), o = await new Promise(function(e) { var t = new FileReader; t.onloadend = function() { e(t.result) }, t.onerror = function() { e("") }, t.readAsDataURL(i) });
+                    o && await A(e, o, !0)
+                }
+            }
+            return n
         } catch (e) {
             return null
         }
@@ -468,10 +527,14 @@
         try {
             var server = _getChatu8ServerStorage();
             if (!server) return;
-            Object.keys(server).forEach(function(id) {
-                var saved = server[id];
-                saved && saved.data && A(id, saved.data, !0).catch(function() {})
-            });
+            for (var sid of Object.keys(server)) {
+                var saved = server[sid];
+                if (saved && saved.data) {
+                    A(sid, saved.data, !0).catch(function() {});
+                    await _mirrorVibeImage(sid, saved.data, saved.type || (0 === String(saved.data).indexOf("data:image/") ? "image" : "text"));
+                    server[sid] && server[sid].path && delete server[sid].data
+                }
+            }
             var ns = _getNaiSettings();
             if (ns && ns.vibeImages && "object" == typeof ns.vibeImages) {
                 Object.keys(ns.vibeImages).forEach(function(id) {
@@ -479,6 +542,13 @@
                     saved && saved.data && !server[id] && (server[id] = saved)
                 });
                 delete ns.vibeImages;
+                for (var mid of Object.keys(server)) {
+                    var merged = server[mid];
+                    if (merged && merged.data) {
+                        await _mirrorVibeImage(mid, merged.data, merged.type || (0 === String(merged.data).indexOf("data:image/") ? "image" : "text"));
+                        server[mid] && server[mid].path && delete server[mid].data
+                    }
+                }
             }
             if (ns && !ns.__vibeImagesMirrored) {
                 var refs = _collectReferencedVibeImageIds();
@@ -499,9 +569,11 @@
                     };
                     req.onerror = function() { resolve([]); };
                 });
-                oldVibeImages.forEach(function(e) {
-                    e && e.id && e.data && refs[e.id] && !server[e.id] && (server[e.id] = e)
-                });
+                for (var oldImg of oldVibeImages) {
+                    oldImg && oldImg.id && oldImg.data && refs[oldImg.id] && !server[oldImg.id] && (server[oldImg.id] = oldImg);
+                    oldImg && oldImg.id && oldImg.data && refs[oldImg.id] && await _mirrorVibeImage(oldImg.id, oldImg.data, oldImg.type || (0 === String(oldImg.data).indexOf("data:image/") ? "image" : "text"));
+                    oldImg && oldImg.id && server[oldImg.id] && server[oldImg.id].path && delete server[oldImg.id].data
+                }
                 ns.__vibeImagesMirrored = true;
             }
             _saveNaiSettings()
@@ -825,17 +897,20 @@
     function _() {
         return "cfgimg_" + S()
     }
-    async function A(e, t, n) {
-        const r = await q();
-        return new Promise((a, i) => {
-            const o = r.transaction(j, "readwrite");
-            o.objectStore(j).put({
+    async function A(e, t, n, r) {
+        const a = await q();
+        return new Promise((i, o) => {
+            const l = a.transaction(j, "readwrite");
+            l.objectStore(j).put({
                 id: e,
                 data: t,
                 date: Date.now()
-            }), o.oncomplete = () => {
-                !n && _shouldUseChatu8ServerStorage() && _mirrorVibeImage(e, t), a()
-            }, o.onerror = e => i(e.target.error)
+            }), l.oncomplete = async () => {
+                try {
+                    !n && _shouldUseChatu8ServerStorage() && await _mirrorVibeImage(e, t, r)
+                } catch (e) {}
+                i()
+            }, l.onerror = e => o(e.target.error)
         })
     }
     async function D(e) {
@@ -2279,12 +2354,12 @@
         } catch (e) {}
         var a = e.name || "Vibe " + (new Date).toLocaleDateString(),
             i = await ee(e);
-        i || (i = _(), await A(i, JSON.stringify(e)));
+        i || (i = _(), await A(i, JSON.stringify(e), !1, "text"));
         var o = null;
         try {
             if (e.image) {
                 var l = _vibeImageSrc(e.image);
-                o = _(), await A(o, l)
+                o = _(), await A(o, l, !1, "image")
             }
         } catch (e) {
             o = null
