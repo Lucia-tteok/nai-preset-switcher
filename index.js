@@ -716,28 +716,35 @@
 
     function autoClassify(pos, neg) {
         var text = ((pos || "") + " " + (neg || "")).toLowerCase();
+
+        function hasKeyword(w) {
+            var escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            if (/^[a-z0-9]+$/.test(w)) {
+                return new RegExp("(^|[^a-z0-9])" + escaped + "($|[^a-z0-9])").test(text)
+            }
+            return text.indexOf(w) !== -1
+        }
+
+        var gufengArtists = [
+            "kang_yiqian", "yao_san_ge_ling", "shang fa", "nixiaozi",
+            "richu_de_xiao_taiyang", "gou_haihaihaihai", "zengzhi zhixu", "ibuki satsuki"
+        ];
         var RR = {
-            "古风": ["hanfu", "qipao", "ancient china", "guzhuang", "tang dynasty", "han dynasty", "song dynasty", "ming dynasty", "chinese clothes", "chinese dress", "chinese robe", "chinese style", "traditional chinese", "wuxia", "xianxia", "taoist", "jade hairpin", "hairpin", "folding fan", "bamboo forest", "lotus", "ink painting", "oriental"],
+            "古风": ["hanfu", "qipao", "ancient china", "guzhuang", "tang dynasty", "han dynasty", "song dynasty", "ming dynasty", "chinese clothes", "chinese dress", "chinese robe", "chinese style", "traditional chinese", "wuxia", "xianxia", "taoist", "jade hairpin", "hairpin", "folding fan", "bamboo forest", "lotus", "ink painting", "oriental"].concat(gufengArtists),
             "西幻": ["fantasy", "elf", "knight", "armor", "medieval", "magic", "dragon", "wizard", "dwarf"],
             "现代": ["modern", "city", "street", "casual", "urban", "jacket", "jeans", "office", "school uniform"],
             "科幻": ["sci-fi", "scifi", "cyberpunk", "mecha", "spaceship", "futuristic", "neon", "android", "robot"],
             "二次元": ["anime", "anime style", "cel shading", "moe", "chibi", "illustration"],
             "写实": ["realistic", "photorealistic", "photo", "dslr", "raw photo", "8k", "realism"]
         };
-        var strongGufeng = ["hanfu", "ancient china", "guzhuang", "tang dynasty", "han dynasty", "song dynasty", "ming dynasty", "chinese clothes", "chinese dress", "chinese robe", "traditional chinese", "wuxia", "xianxia"].some(function(w) {
-            return text.indexOf(w) !== -1
-        });
+        var strongGufeng = ["hanfu", "ancient china", "guzhuang", "tang dynasty", "han dynasty", "song dynasty", "ming dynasty", "chinese clothes", "chinese dress", "chinese robe", "traditional chinese", "wuxia", "xianxia"].concat(gufengArtists).some(hasKeyword);
         var hits = [];
         for (var k in RR) {
-            if (RR[k].some(function(w) {
-                    return text.indexOf(w) !== -1
-                })) hits.push(k)
+            if (RR[k].some(hasKeyword)) hits.push(k)
         }
         if (strongGufeng && hits.indexOf("古风") >= 0) {
             var westernOnly = ["elf", "knight", "dragon", "wizard", "dwarf", "medieval"];
-            var hasWesternOnly = westernOnly.some(function(w) {
-                return text.indexOf(w) !== -1
-            });
+            var hasWesternOnly = westernOnly.some(hasKeyword);
             if (!hasWesternOnly) hits = hits.filter(function(k) {
                 return k !== "西幻"
             })
@@ -1576,7 +1583,7 @@
                 var bar = s.createElement('div');
                 bar.id = 'nl-rand-btns';
                 bar.setAttribute('style', 'margin-top:22px;display:flex;gap:10px;justify-content:center;white-space:nowrap;opacity:0;transition:opacity .3s;');
-                bar.innerHTML = '<button class="nl-btn ghost" id="nl-rand-cancel" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">\u53d6\u6d88</button><button class="nl-btn ghost" id="nl-rand-reroll" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">\u91cd\u65b0\u62bd\u53d6</button><button class="nl-btn" id="nl-rand-apply" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">\u8bbe\u4e3a\u9884\u8bbe</button>';
+                bar.innerHTML = '<button class="nl-btn ghost" id="nl-rand-cancel" style="font-size:14px!important;padding:9px 14px!important;min-height:40px!important;line-height:1.2!important;box-sizing:border-box!important;">\u53d6\u6d88</button><button class="nl-btn ghost" id="nl-rand-reroll" style="font-size:14px!important;padding:9px 14px!important;min-height:40px!important;line-height:1.2!important;box-sizing:border-box!important;">\u91cd\u65b0\u62bd\u53d6</button><button class="nl-btn" id="nl-rand-apply" style="font-size:14px!important;padding:9px 14px!important;min-height:40px!important;line-height:1.2!important;box-sizing:border-box!important;">\u8bbe\u4e3a\u9884\u8bbe</button>';
                 wrap.appendChild(bar);
                 requestAnimationFrame(function() {
                     bar.style.opacity = '1';
