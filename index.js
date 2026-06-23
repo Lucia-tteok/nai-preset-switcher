@@ -1569,32 +1569,31 @@
                     showBtns();
                 }, 430);
             }
-function showBtns() {
-var wrap = mask.querySelector('.nl-rwrap');
-if (!wrap || wrap.querySelector('#nl-rand-btns')) return;
-var bar = s.createElement('div');
-bar.id = 'nl-rand-btns';
-bar.setAttribute('style', 'margin-top:22px;display:flex;gap:14px;justify-content:center;white-space:nowrap;opacity:0;transition:opacity .3s;');
-bar.innerHTML = '<button class="nl-btn ghost" id="nl-rand-cancel" style="font-size:14px!important;padding:10px 16px!important;min-height:40px!important;min-width:86px!important;line-height:1.1!important;box-sizing:border-box!important;">\u53d6\u6d88</button><button class="nl-btn ghost" id="nl-rand-reroll" style="font-size:14px!important;padding:10px 16px!important;min-height:40px!important;min-width:86px!important;line-height:1.1!important;box-sizing:border-box!important;">\u91cd\u65b0\u62bd\u53d6</button><button class="nl-btn primary" id="nl-rand-apply" style="font-size:14px!important;padding:10px 16px!important;min-height:40px!important;min-width:86px!important;line-height:1.1!important;box-sizing:border-box!important;">\u8bbe\u4e3a\u9884\u8bbe</button>';
-wrap.appendChild(bar);
-requestAnimationFrame(function() {
-bar.style.opacity = '1';
-});
-var c1 = bar.querySelector('#nl-rand-cancel');
-c1 && c1.addEventListener('click', function() {
-mask.remove();
-});
-var c2 = bar.querySelector('#nl-rand-reroll');
-c2 && c2.addEventListener('click', function() {
-render();
-});
-var c3 = bar.querySelector('#nl-rand-apply');
-c3 && c3.addEventListener('click', function() {
-var e = picks[sel];
-mask.remove();
-applyPresetEntry(e);
-});
-}
+
+            function showBtns() {
+                var wrap = mask.querySelector('.nl-rwrap');
+                if (!wrap || wrap.querySelector('#nl-rand-btns')) return;
+                var bar = s.createElement('div');
+                bar.id = 'nl-rand-btns';
+                bar.setAttribute('style', 'margin-top:22px;display:flex;gap:10px;justify-content:center;white-space:nowrap;opacity:0;transition:opacity .3s;');
+                bar.innerHTML = '<button class="nl-btn ghost" id="nl-rand-cancel" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">\u53d6\u6d88</button><button class="nl-btn ghost" id="nl-rand-reroll" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">\u91cd\u65b0\u62bd\u53d6</button><button class="nl-btn" id="nl-rand-apply" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">\u8bbe\u4e3a\u9884\u8bbe</button>';
+                wrap.appendChild(bar);
+                requestAnimationFrame(function() {
+                    bar.style.opacity = '1';
+                });
+                var c1 = bar.querySelector('#nl-rand-cancel');
+                c1 && c1.addEventListener('click', function() {
+                    mask.remove();
+                });
+                var c2 = bar.querySelector('#nl-rand-reroll');
+                c2 && c2.addEventListener('click', function() {
+                    render();
+                });
+                var c3 = bar.querySelector('#nl-rand-apply');
+                c3 && c3.addEventListener('click', function() {
+                    var e = picks[sel];
+                    mask.remove();
+                    applyPresetEntry(e);
                     setTimeout(R, 300);
                 });
             }
