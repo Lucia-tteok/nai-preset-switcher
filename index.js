@@ -2550,7 +2550,7 @@
                     i = r && r.thumb ? '<img class="nl-vibe-slot-thumb" src="' + r.thumb + '">' : '<div class="nl-vibe-slot-thumb empty">&#127912;</div>',
                     o = "number" == typeof e.strength ? e.strength : .6;
                 return '<div class="nl-vibe-slot" data-slot="' + n + '">' + i + '<div class="nl-vibe-slot-body"><div class="nl-vibe-slot-name">' + k(a) + '</div><label class="nl-vibe-row"><span>强度 <b class="nl-slot-strv">' + o.toFixed(2) + '</b></span><input type="range" class="nl-slot-strength" data-slot="' + n + '" min="0" max="1" step="0.01" value="' + o + '"></label></div><span class="nl-vibe-slot-del" data-slot="' + n + '" title="移出组">✕</span></div>'
-            }).join("") : '<div class="nl-empty" style="padding:14px;">该组为空，去上方列表点「＋组」添加 Vibe（可叠加多个）</div>', e.innerHTML = '<details class="nl-vibe-listfold"' + (_vlf ? ' open' : '') + '><summary class="nl-vibe-sec-title" style="cursor:pointer;">Vibe 列表</summary>' + i + '</details><div class="nl-vibe-sec-title" style="margin-top:18px;">Vibe 叠加组</div><div class="nl-vibe-grouprow"><select class="nl-input" id="nl-vibe-groupsel" style="flex:1;">' + l + '</select><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-newgroup">新建组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-renamegroup">重命名</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-delgroup">删组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-savegroup">保存</button></div><div class="nl-vibe-groupcur">' + (oe === a ? '<span style="color:#3a9a5a;">✓ 这是智绘姬当前生效组</span>' : '<button class="nl-btn nl-vibe-groupbtn" id="nl-vibe-applygroup">设为智绘姬当前组</button>') + '</div><div class="nl-vibe-slots">' + o + "</div>",
+            }).join("") : '<div class="nl-empty" style="padding:14px;">该组为空，去上方列表点「＋组」添加 Vibe（可叠加多个）</div>', e.innerHTML = '<details class="nl-vibe-listfold"' + (_vlf ? ' open' : '') + '><summary class="nl-vibe-sec-title" style="cursor:pointer;">Vibe 列表</summary>' + i + '</details><div class="nl-vibe-sec-title" style="margin-top:18px;">Vibe 叠加组</div><div class="nl-vibe-grouprow"><select class="nl-input" id="nl-vibe-groupsel" style="flex:1;">' + l + '</select><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-newgroup">新建组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-renamegroup">重命名</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-delgroup">删组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-savegroup">保存</button></div><div class="nl-vibe-slots">' + o + "</div>",
             function(e) {
                 var _lf = e.querySelector(".nl-vibe-listfold");
                 _lf && _lf.addEventListener("toggle", function() {
@@ -2601,7 +2601,7 @@
                 });
                 var i = e.querySelector("#nl-vibe-groupsel");
                 i && i.addEventListener("change", function() {
-                    nlConfirmVibePending() ? (oe = i.value, le()) : i.value = oe
+                    nlConfirmVibePending() ? (oeSetCurrentGroup(i.value), le()) : i.value = oe
                 });
                 var o = e.querySelector("#nl-vibe-newgroup");
                 o && o.addEventListener("click", function() {
@@ -2634,10 +2634,6 @@
                             delete t[n], e.vibeGroupId === n && (e.vibeGroupId = "默认组"), X(), ae(n, ""), oeSetCurrentGroup("默认组", !0), E("已删除组", "success"), le()
                         }
                     } else E("默认组不可删除", "warning")
-                });
-                var c = e.querySelector("#nl-vibe-applygroup");
-                c && c.addEventListener("click", function() {
-                    oeSetCurrentGroup(oe) ? (E("已设为智绘姬当前组「" + oe + "」", "success"), le()) : E("切换失败", "error")
                 });
                 nlVibePending = nlVibePending || {}, e.querySelectorAll(".nl-slot-strength").forEach(function(e) {
                         e.addEventListener("input", function() {
