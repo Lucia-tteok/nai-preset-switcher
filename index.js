@@ -2579,7 +2579,7 @@
                                         presets: 0,
                                         errors: []
                                     };
-                                    if (!e || "object" != typeof e || !e.vibeGroups || !e.vibeData) return t.errors.push("文件结构无效（缺少 vibeGroups 或 vibeData）"), t;
+                                    if (!e || "object" != typeof e || !e.groups || !e.vibeData) return t.errors.push("文件结构无效（缺少 groups 或 vibeData）"), t;
                                     var n = W();
                                     if (!n) return t.errors.push("未检测到智绘姬"), t;
                                     n.vibeGroups || (n.vibeGroups = {}), n.vibePresets && "object" == typeof n.vibePresets || (n.vibePresets = {});
@@ -2593,14 +2593,14 @@
                                             t.errors.push("存储 vibe 失败: " + l)
                                         } else t.errors.push("跳过无效 vibe: " + l)
                                     }
-                                    for (var p = {}, u = e.imageData || {}, v = Object.keys(u), b = 0; b < v.length; b++) {
+                                    for (var p = {}, u = e.presetImages || {}, v = Object.keys(u), b = 0; b < v.length; b++) {
                                         var g = v[b];
                                         try {
                                             var f = _();
                                             await A(f, u[g], !1, "image"), p[g] = f
                                         } catch (e) {}
                                     }
-                                    var m = e.vibeGroups || {};
+                                    var m = e.groups || {};
                                     Object.keys(m).forEach(function(e) {
                                         var a = m[e];
                                         if (a && Array.isArray(a.vibes)) {
@@ -2628,7 +2628,7 @@
                                         if (a && "object" == typeof a) {
                                             for (var i = e, o = 2; Object.prototype.hasOwnProperty.call(n.vibePresets, i);) i = e + " (" + o + ")", o++;
                                             n.vibePresets[i] = {
-                                                model: a.model || "nai-diffusion-4-5-full",
+                                                model: a.model || "nai-diffusion-4-5-curated",
                                                 infoExtract: "number" == typeof a.infoExtract ? a.infoExtract : 1,
                                                 strength: "number" == typeof a.strength ? a.strength : .6,
                                                 imageId: a.imageId ? p[a.imageId] || a.imageId : null,
