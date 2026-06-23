@@ -717,18 +717,30 @@
     function autoClassify(pos, neg) {
         var text = ((pos || "") + " " + (neg || "")).toLowerCase();
         var RR = {
-            "古风": ["hanfu", "qipao", "ancient china", "guzhuang", "tang dynasty", "han dynasty", "chinese clothes", "oriental", "chinese dress"],
+            "古风": ["hanfu", "qipao", "ancient china", "guzhuang", "tang dynasty", "han dynasty", "song dynasty", "ming dynasty", "chinese clothes", "chinese dress", "chinese robe", "chinese style", "traditional chinese", "wuxia", "xianxia", "taoist", "jade hairpin", "hairpin", "folding fan", "bamboo forest", "lotus", "ink painting", "oriental"],
             "西幻": ["fantasy", "elf", "knight", "armor", "medieval", "magic", "dragon", "wizard", "dwarf"],
             "现代": ["modern", "city", "street", "casual", "urban", "jacket", "jeans", "office", "school uniform"],
             "科幻": ["sci-fi", "scifi", "cyberpunk", "mecha", "spaceship", "futuristic", "neon", "android", "robot"],
             "二次元": ["anime", "anime style", "cel shading", "moe", "chibi", "illustration"],
             "写实": ["realistic", "photorealistic", "photo", "dslr", "raw photo", "8k", "realism"]
         };
+        var strongGufeng = ["hanfu", "ancient china", "guzhuang", "tang dynasty", "han dynasty", "song dynasty", "ming dynasty", "chinese clothes", "chinese dress", "chinese robe", "traditional chinese", "wuxia", "xianxia"].some(function(w) {
+            return text.indexOf(w) !== -1
+        });
         var hits = [];
         for (var k in RR) {
             if (RR[k].some(function(w) {
                     return text.indexOf(w) !== -1
                 })) hits.push(k)
+        }
+        if (strongGufeng && hits.indexOf("古风") >= 0) {
+            var westernOnly = ["elf", "knight", "dragon", "wizard", "dwarf", "medieval"];
+            var hasWesternOnly = westernOnly.some(function(w) {
+                return text.indexOf(w) !== -1
+            });
+            if (!hasWesternOnly) hits = hits.filter(function(k) {
+                return k !== "西幻"
+            })
         }
         return hits.length ? hits : ["未分类"]
     }
