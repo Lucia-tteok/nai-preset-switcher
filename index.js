@@ -679,6 +679,49 @@
         b = !1,
         g = new Set;
 
+    function applyPresetVibeBinding(e) {
+        var t = W(),
+            n = re() || {};
+        if (!t) return;
+        var r = !!(e && e.vibeEnabled),
+            a = r && e.vibeGroup && n[e.vibeGroup] ? e.vibeGroup : n["默认组"] ? "默认组" : Object.keys(n)[0] || "";
+        t.enableVibeGroupTransfer = r && a ? "true" : "false";
+        if (a) {
+            if (r && e.vibeStrengths && n[a] && n[a].vibes) {
+                var i = e.vibeStrengths || {};
+                n[a].vibes.forEach(function(e) {
+                    "number" == typeof i[e.vibeDataId] && (e.strength = i[e.vibeDataId])
+                })
+            }
+            ie(a)
+        } else X();
+        try {
+            var o = window.parent && window.parent.document || s,
+                l = window.parent && (window.parent.jQuery || window.parent.$),
+                c = o.getElementById("enableVibeGroupTransfer");
+            c && (c.checked = r, l ? l(c).prop("checked", r).trigger("change") : c.dispatchEvent(new Event("change", {
+                bubbles: !0
+            })))
+        } catch (e) {}
+    }
+
+    function getCurrentVibeBinding() {
+        var e = "function" == typeof oeGetActiveGroup ? oeGetActiveGroup() : "";
+        return {
+            vibeEnabled: !!e,
+            vibeGroup: e || "默认组",
+            vibeStrengths: e ? oeCollectGroupStrengths(e) : {}
+        }
+    }
+
+    function oeCollectGroupStrengths(e) {
+        var t = (re() || {})[e],
+            n = {};
+        return t && t.vibes && t.vibes.forEach(function(e) {
+            e && e.vibeDataId && "number" == typeof e.strength && (n[e.vibeDataId] = e.strength)
+        }), n
+    }
+
     function applyPresetEntry(n) {
         if (!W()) return void E("未检测到智绘姬（st-chatu8）", "error");
         const e = (n.name || "").trim();
@@ -714,26 +757,7 @@
             } catch (e) {}
             return !1
         }(e);
-        ! function(e) {
-            var t = W();
-            if (!t) return;
-            var n = !!e.vibeEnabled;
-            if (t.enableVibeGroupTransfer = n ? "true" : "false", n && e.vibeGroup && t.vibeGroups && t.vibeGroups[e.vibeGroup]) {
-                var r = t.vibeGroups[e.vibeGroup],
-                    a = e.vibeStrengths || {};
-                r.vibes && r.vibes.length && r.vibes.forEach(function(e) {
-                    "number" == typeof a[e.vibeDataId] && (e.strength = a[e.vibeDataId])
-                }), ie(e.vibeGroup)
-            } else X();
-            try {
-                var i = window.parent && window.parent.document || s,
-                    o = window.parent && (window.parent.jQuery || window.parent.$),
-                    l = i.getElementById("enableVibeGroupTransfer");
-                l && (l.checked = n, o ? o(l).prop("checked", n).trigger("change") : l.dispatchEvent(new Event("change", {
-                    bubbles: !0
-                })))
-            } catch (e) {}
-        }(n), async function() {
+        applyPresetVibeBinding(n), async function() {
             t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), R()
         }()
     }
@@ -1347,17 +1371,21 @@
                 n = _allrecs.find(e => (e.name || "").trim() === t) || null
             } catch (e) {}
             if (n && !confirm("已存在名为「" + t + "」的预设，继续保存将覆盖它，是否继续？")) return;
-            const r = {
-                id: n ? n.id : S(),
-                name: t,
-                category: d.slice(),
-                positive: e.querySelector("#nl-pos").value || "",
-                negative: e.querySelector("#nl-neg").value || "",
-                source: c && c.source || "",
-                thumb: c && c.thumb || n && n.thumb || "",
-                createdAt: n && n.createdAt || Date.now(),
-                sortOrder: n && typeof n.sortOrder === "number" ? n.sortOrder : (_allrecs.reduce((m, x) => typeof x.sortOrder === "number" && x.sortOrder < m ? x.sortOrder : m, 0) - 1)
-            };
+            const vibeBinding = getCurrentVibeBinding(),
+                r = {
+                    id: n ? n.id : S(),
+                    name: t,
+                    category: d.slice(),
+                    positive: e.querySelector("#nl-pos").value || "",
+                    negative: e.querySelector("#nl-neg").value || "",
+                    source: c && c.source || "",
+                    thumb: c && c.thumb || n && n.thumb || "",
+                    createdAt: n && n.createdAt || Date.now(),
+                    sortOrder: n && typeof n.sortOrder === "number" ? n.sortOrder : (_allrecs.reduce((m, x) => typeof x.sortOrder === "number" && x.sortOrder < m ? x.sortOrder : m, 0) - 1),
+                    vibeEnabled: vibeBinding.vibeEnabled,
+                    vibeGroup: vibeBinding.vibeGroup,
+                    vibeStrengths: vibeBinding.vibeStrengths
+                };
             try {
                 await I.put(r);
                 var a = !1;
@@ -2141,11 +2169,10 @@
                     var e = re() || {},
                         t = Object.keys(e).sort(function(e, t) {
                             return "默认组" === e ? -1 : "默认组" === t ? 1 : e.localeCompare(t, "zh-CN")
-                        }),
-                        r = oeGetActiveGroup();
-                    t.length ? (r && e[r] && (n.vibeGroup = r), n.vibeGroup && !e[n.vibeGroup] && (n.vibeGroup = ""), b.innerHTML = t.map(function(e) {
+                        });
+                    t.length ? (n.vibeGroup && !e[n.vibeGroup] && (n.vibeGroup = ""), n.vibeGroup || (n.vibeGroup = e["默认组"] ? "默认组" : t[0]), b.innerHTML = t.map(function(e) {
                         return '<option value="' + k(e) + '"' + (e === n.vibeGroup ? " selected" : "") + ">" + k(e) + "</option>"
-                    }).join(""), n.vibeGroup || (n.vibeGroup = b.value), I.put(n)) : b.innerHTML = '<option value="">（暂无 Vibe 组，去 Vibe 库新建）</option>', m()
+                    }).join(""), b.value = n.vibeGroup, I.put(n)) : b.innerHTML = '<option value="">（暂无 Vibe 组，去 Vibe 库新建）</option>', m()
                 }
             }(), u && u.addEventListener("click", function() {
                 if (!W()) return void E("未检测到智绘姬（st-chatu8）", "error");
@@ -2182,26 +2209,7 @@
                     } catch (e) {}
                     return !1
                 }(e);
-                ! function(e) {
-                    var t = W();
-                    if (!t) return;
-                    var n = !!e.vibeEnabled;
-                    if (t.enableVibeGroupTransfer = n ? "true" : "false", n && e.vibeGroup && t.vibeGroups && t.vibeGroups[e.vibeGroup]) {
-                        var r = t.vibeGroups[e.vibeGroup],
-                            a = e.vibeStrengths || {};
-                        r.vibes && r.vibes.length && r.vibes.forEach(function(e) {
-                            "number" == typeof a[e.vibeDataId] && (e.strength = a[e.vibeDataId])
-                        }), ie(e.vibeGroup)
-                    } else X();
-                    try {
-                        var i = window.parent && window.parent.document || s,
-                            o = window.parent && (window.parent.jQuery || window.parent.$),
-                            l = i.getElementById("enableVibeGroupTransfer");
-                        l && (l.checked = n, o ? o(l).prop("checked", n).trigger("change") : l.dispatchEvent(new Event("change", {
-                            bubbles: !0
-                        })))
-                    } catch (e) {}
-                }(n), async function() {
+                applyPresetVibeBinding(n), async function() {
                     t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), R()
                 }()
             });
