@@ -3,7 +3,7 @@
    弹窗内检查是否最新、显示更新内容、可选更新。不会自动检测。 */
 (function() {
     "use strict";
-    var LOCAL_VERSION = "1.4.0";
+    var LOCAL_VERSION = "1.4.1";
     var EXT_NAME = "/nai-preset-switcher"; // 扩展文件夹名，服务端会补全为 third-party/<name>
     var PANEL_ID = "nai-lib-panel-v2";
     var BAR_ID = "nai-update-bar";
@@ -81,7 +81,25 @@
         }
         return null;
     }
-
+    function compareVersion(a, b) {
+        var pa = String(a || "").split(".").map(function(v) {
+                return parseInt(v, 10) || 0
+            }),
+            pb = String(b || "").split(".").map(function(v) {
+                return parseInt(v, 10) || 0
+            }),
+            len = Math.max(pa.length, pb.length);
+        for (var i = 0; i < len; i++) {
+            var da = pa[i] || 0,
+                db = pb[i] || 0;
+            if (da > db) return 1;
+            if (da < db) return -1
+        }
+        return 0
+    }
+    function isRemoteNewer(remoteVersion) {
+        return !!remoteVersion && compareVersion(remoteVersion, LOCAL_VERSION) > 0
+    }
     async function checkUpdate() {
         var result = {
             isUpToDate: null,
@@ -237,10 +255,8 @@
         }
 
         // 显示检查结果
-        if (info.isUpToDate === true) {
-            status.textContent = "✅ 当前已是最新版本";
-            status.style.background = "rgba(80,200,120,.12)";
-        } else if (info.isUpToDate === false) {
+        var hasNewVersion = isRemoteNewer(info.remoteVersion);
+        if (hasNewVersion) {
             status.textContent = "";
             status.style.background = "rgba(255,209,102,.10)";
             var line = el("div", "margin-bottom:10px;color:#ffd166;font-size:14px;", "🔔 发现新版本" + (info.remoteVersion ? " v" + info.remoteVersion : ""));
@@ -257,30 +273,36 @@
                 doUpdate(btn);
             });
             status.appendChild(btn);
+        } else if (info.remoteVersion || info.isUpToDate === true) {
+            hideUpdateHint();
+            status.textContent = "✅ 当前已是最新版本";
+            status.style.background = "rgba(80,200,120,.12)";
+        } else if (info.isUpToDate === false) {
+            status.textContent = "";
+            status.style.background = "rgba(255,209,102,.10)";
+            var line2 = el("div", "margin-bottom:10px;color:#ffd166;font-size:14px;", "🔔 可能有可用更新");
+            status.appendChild(line2);
+            var hint = el("div", "font-size:12px;opacity:.7;margin-bottom:10px;", "未能获取远程版本号，建议在酒馆扩展面板手动检查更新，或点击下方按钮尝试更新。");
+            status.appendChild(hint);
+            var btn2 = el("button", "padding:8px 20px;border:none;border-radius:8px;background:#4a90d9;color:#fff;cursor:pointer;font-size:14px;font-weight:500;");
+            btn2.textContent = "尝试更新";
+            btn2.addEventListener("click", function() {
+                doUpdate(btn2);
+            });
+            status.appendChild(btn2);
         } else {
-            // 接口不可用，降级用版本号比对
-            if (info.remoteVersion && info.remoteVersion !== LOCAL_VERSION) {
-                status.textContent = "";
-                status.style.background = "rgba(255,209,102,.10)";
-                var line2 = el("div", "margin-bottom:10px;color:#ffd166;font-size:14px;", "🔔 远程版本 v" + info.remoteVersion + " 与本地不一致");
-                status.appendChild(line2);
-                var hint = el("div", "font-size:12px;opacity:.7;margin-bottom:10px;", "建议在酒馆扩展面板手动更新，或点击下方按钮尝试更新。");
-                status.appendChild(hint);
-                var btn2 = el("button", "padding:8px 20px;border:none;border-radius:8px;background:#4a90d9;color:#fff;cursor:pointer;font-size:14px;font-weight:500;");
-                btn2.textContent = "尝试更新";
-                btn2.addEventListener("click", function() {
-                    doUpdate(btn2);
-                });
-                status.appendChild(btn2);
-            } else {
-                status.textContent = "无法自动检查更新（可能不是通过 Git URL 安装）。如需更新请用酒馆扩展面板。";
-                status.style.opacity = ".7";
-            }
+            status.textContent = "无法自动检查更新（可能不是通过 Git URL 安装）。如需更新请用酒馆扩展面板。";
+            status.style.opacity = ".7";
         }
     }
 
     /* === 面板标题重命名 + 插入版本标签（点击弹出更新中心） === */
     var _updateHint = null; // 更新提示元素引用
+    function hideUpdateHint() {
+        if (!_updateHint) return;
+        _updateHint.textContent = "";
+        _updateHint.style.display = "none";
+    }
     function ensureBar() {
         var doc = D();
         var panel = doc.getElementById(PANEL_ID);
@@ -348,9 +370,11 @@
         _silentChecked = true;
         try {
             var mani = await fetchRemoteManifest();
-            if (mani && mani.version && mani.version !== LOCAL_VERSION && _updateHint) {
+            if (mani && isRemoteNewer(mani.version) && _updateHint) {
                 _updateHint.textContent = "（点击版本号进行更新）";
                 _updateHint.style.display = "inline";
+            } else {
+                hideUpdateHint();
             }
         } catch (e) {}
     }
@@ -2427,6 +2451,9 @@
         return !0
     }
 
+    var oeNativeSyncing = !1,
+        oeLastNativeStrengthSignature = "";
+
     function ie(e) {
         var t = W();
         if (!t || !t.vibeGroups || !t.vibeGroups[e]) return !1;
@@ -2435,7 +2462,9 @@
             var n = window.parent && window.parent.document || s,
                 r = window.parent && (window.parent.jQuery || window.parent.$),
                 as = n.querySelectorAll("#vibe-group-select");
-            as.forEach(function(a) {
+            oeNativeSyncing = !0, setTimeout(function() {
+                oeNativeSyncing = !1
+            }, 0), as.forEach(function(a) {
                 for (var i = !1, o = 0; o < a.options.length; o++)
                     if (a.options[o].value === e) {
                         i = !0;
@@ -2452,8 +2481,85 @@
                     bubbles: !0
                 }))
             }
-        } catch (e) {}
+        } catch (e) {
+            oeNativeSyncing = !1
+        }
         return !0
+    }
+
+    function oeRefreshOpenVibePanel() {
+        try {
+            nlIsVibeTabActive() && le()
+        } catch (e) {}
+    }
+
+    function oeSyncCurrentGroupDisplay(e, t) {
+        var n = re() || {};
+        if (!e || !n[e]) return !1;
+        return oe = e, W() && (W().vibeGroupId = e, X()), t || (oeRefreshOpenVibePanel(), oeRefreshDetailVibeViews(e)), !0
+    }
+
+    function oeGroupStrengthSignature(e) {
+        var t = (re() || {})[e];
+        return t && t.vibes ? t.vibes.map(function(e) {
+            return (e.vibeDataId || "") + ":" + ("number" == typeof e.strength ? e.strength : "")
+        }).join("|") : ""
+    }
+
+    async function oeSyncActivePresetStrengths(e) {
+        try {
+            var t = W(),
+                n = t && (t.yusheid_novelai || "").trim(),
+                r = e || oeGetActiveGroup(),
+                a = (re() || {})[r];
+            if (!t || !n || !a || !a.vibes) return !1;
+            var i = (await I.all()).filter(function(e) {
+                return (e.name || "").trim() === n
+            })[0];
+            if (!i || !i.vibeEnabled || i.vibeGroup !== r) return !1;
+            var o = !1;
+            i.vibeStrengths || (i.vibeStrengths = {}), a.vibes.forEach(function(e) {
+                e && e.vibeDataId && "number" == typeof e.strength && i.vibeStrengths[e.vibeDataId] !== e.strength && (i.vibeStrengths[e.vibeDataId] = e.strength, o = !0)
+            });
+            return o && (await I.put(i), oeRefreshDetailStrengthViews(i)), o
+        } catch (e) {
+            return !1
+        }
+    }
+
+    function oeRefreshDetailStrengthViews(e) {
+        try {
+            var t = s.getElementById(r);
+            if (!t || !e || !e.vibeStrengths) return;
+            t.querySelectorAll(".nl-dslot-strength").forEach(function(t) {
+                var n = t.getAttribute("data-vid"),
+                    r = e.vibeStrengths[n];
+                if ("number" == typeof r) {
+                    t.value = r;
+                    var a = t.parentNode && t.parentNode.querySelector(".nl-slot-strv");
+                    a && (a.textContent = r.toFixed(2))
+                }
+            })
+        } catch (e) {}
+    }
+
+    function oeBindNativeVibeGroupSelects() {
+        try {
+            var e = window.parent && window.parent.document || s;
+            e.querySelectorAll("#vibe-group-select").forEach(function(e) {
+                e.__naiVibeGroupBound || (e.__naiVibeGroupBound = !0, e.addEventListener("change", function() {
+                    oeNativeSyncing || nlConfirmVibePending() && (oeSyncCurrentGroupDisplay(e.value), oeLastNativeStrengthSignature = oeGroupStrengthSignature(e.value))
+                }))
+            })
+        } catch (e) {}
+    }
+
+    function oePollNativeVibeStrengths() {
+        try {
+            var e = oeGetActiveGroup(),
+                t = oeGroupStrengthSignature(e);
+            e && (oeLastNativeStrengthSignature ? t && t !== oeLastNativeStrengthSignature && oeSyncActivePresetStrengths(e) : oeLastNativeStrengthSignature = t, oeLastNativeStrengthSignature = t)
+        } catch (e) {}
     }
 
     function oeSyncEnabled(e) {
@@ -2517,7 +2623,7 @@
         return !!(t && t.vibes && n.length) && (n.forEach(function(e) {
             var n = parseInt(e, 10);
             t.vibes[n] && (t.vibes[n].strength = nlVibePending[e])
-        }), t.updatedAt = Date.now(), X(), oe === oeGetActiveGroup() && ie(oe), nlVibePending = {}, !0)
+        }), t.updatedAt = Date.now(), X(), oe === oeGetActiveGroup() && (ie(oe), oeSyncActivePresetStrengths(oe), oeLastNativeStrengthSignature = oeGroupStrengthSignature(oe)), nlVibePending = {}, !0)
     }
 
     function nlConfirmVibePending() {
@@ -2547,7 +2653,7 @@
                 return e && e.vibeGroupId || "默认组"
             }();
         let i;
-        oe && n[oe] || (oe = a), i = t.length ? '<div class="nl-vibe-grid">' + t.map(function(e) {
+        a && n[a] ? oe = a : oe && n[oe] || (oe = a), i = t.length ? '<div class="nl-vibe-grid">' + t.map(function(e) {
             var t = e.thumb ? '<img class="nl-vibe-card-thumb" src="' + e.thumb + '">' : '<div class="nl-vibe-card-thumb empty">&#127912;</div>',
                 n = k(e.presetName),
                 r = k(e.vibeDataId || "");
@@ -2683,6 +2789,7 @@
 
     function ce() {
         try {
+            oeBindNativeVibeGroupSelects(), oePollNativeVibeStrengths();
             if (s.getElementById(n)) return;
             var t = s.getElementById("extensionsMenu");
             if (!t) return;
