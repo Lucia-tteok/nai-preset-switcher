@@ -2670,7 +2670,7 @@
             var r = s.createElement("div");
             r.id = n, r.className = "list-group-item flex-container flexGap5 interactable", r.title = e, r.tabIndex = 0, r.innerHTML = '<i class="fa-solid fa-chevron-down fa-fw"></i><span>' + e + "</span>";
             var a = function(e) {
-                e && (e.preventDefault(), e.stopPropagation()), N().style.display = "flex", M("lib")
+                e && (e.preventDefault(), e.stopPropagation()); var panel = N(); panel.style.display = "flex"; var active = panel.querySelector(".nl-tab.active"); active && active.getAttribute("data-tab") === "lib" ? R() : M("lib")
             };
             r.addEventListener("click", a), r.addEventListener("touchend", a);
             var i = function() {
