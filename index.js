@@ -4,13 +4,13 @@
 (function() {
     "use strict";
     var LOCAL_VERSION = "1.4.0";
-    var EXT_NAME = "/nai-preset-switcher-test"; // 扩展文件夹名，服务端会补全为 third-party/<name>
+    var EXT_NAME = "/nai-preset-switcher"; // 扩展文件夹名，服务端会补全为 third-party/<name>
     var PANEL_ID = "nai-lib-panel-v2";
     var BAR_ID = "nai-update-bar";
     var MODAL_ID = "nai-update-modal";
     var MANIFEST_URLS = [
-        "https://raw.githubusercontent.com/Lucia-tteok/nai-preset-switcher-test/main/manifest.json",
-        "https://cdn.jsdelivr.net/gh/Lucia-tteok/nai-preset-switcher-test@main/manifest.json"
+        "https://raw.githubusercontent.com/Lucia-tteok/nai-preset-switcher/main/manifest.json",
+        "https://cdn.jsdelivr.net/gh/Lucia-tteok/nai-preset-switcher@main/manifest.json"
     ];
 
     function W() {
