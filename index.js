@@ -3,7 +3,7 @@
    弹窗内检查是否最新、显示更新内容、可选更新。不会自动检测。 */
 (function() {
     "use strict";
-    var LOCAL_VERSION = "1.4.1";
+    var LOCAL_VERSION = "1.4.2";
     var EXT_NAME = "/nai-preset-switcher"; // 扩展文件夹名，服务端会补全为 third-party/<name>
     var PANEL_ID = "nai-lib-panel-v2";
     var BAR_ID = "nai-update-bar";
@@ -371,7 +371,7 @@
         try {
             var mani = await fetchRemoteManifest();
             if (mani && isRemoteNewer(mani.version) && _updateHint) {
-                _updateHint.textContent = "（点击版本号进行更新）";
+                _updateHint.textContent = "（点击版本号更新）";
                 _updateHint.style.display = "inline";
             } else {
                 hideUpdateHint();
@@ -2624,6 +2624,17 @@
         return !!(nlVibePending && Object.keys(nlVibePending).length)
     }
 
+    function nlCaptureVibePending(e) {
+        var t = re(),
+            n = t && t[oe];
+        e && n && n.vibes && e.querySelectorAll(".nl-slot-strength").forEach(function(e) {
+            var t = parseInt(e.getAttribute("data-slot"), 10),
+                r = parseFloat(e.value),
+                a = n.vibes[t];
+            if (!isNaN(t) && !isNaN(r) && (!a || "number" != typeof a.strength || Math.abs(a.strength - r) >= .0001)) nlVibePending[t] = r
+        })
+    }
+
     function nlSaveVibePending() {
         var e = re(),
             t = e && e[oe],
@@ -2635,9 +2646,11 @@
     }
 
     function nlConfirmVibePending() {
+        var e = s.getElementById(r),
+            t = e && e.querySelector('.nl-body[data-view="vibe"]');
+        nlCaptureVibePending(t);
         if (!nlHasVibePending()) return !0;
-        confirm("当前 Vibe 叠加组设置未保存，是否保存？") && nlSaveVibePending();
-        return nlVibePending = {}, !0
+        return confirm("当前 Vibe 叠加组设置未保存，是否保存？") && nlSaveVibePending(), nlVibePending = {}, !0
     }
     var oe = null,
         _vlf = !1;
@@ -2776,13 +2789,10 @@
                             var r = e.parentNode.querySelector(".nl-slot-strv");
                             r && (r.textContent = n.toFixed(2))
                         })
-                    }),
-                    function() {
-                        var sg = e.querySelector("#nl-vibe-savegroup");
-                        sg && sg.addEventListener("click", function() {
-                            nlSaveVibePending() ? E("已保存", "success") : E("没有需要保存的修改", "info")
-                        })
-                    }(), e.querySelectorAll(".nl-vibe-slot-del").forEach(function(e) {
+                    }), e.__naiVibeSaveClickBound || (e.__naiVibeSaveClickBound = !0, e.addEventListener("click", function(t) {
+                        var n = t.target && t.target.closest && t.target.closest("#nl-vibe-savegroup");
+                        n && (t.preventDefault(), t.stopPropagation(), nlCaptureVibePending(e), nlSaveVibePending() ? E("已保存", "success") : E("没有需要保存的修改", "info"))
+                    })), e.querySelectorAll(".nl-vibe-slot-del").forEach(function(e) {
                         e.addEventListener("click", function() {
                             var t = parseInt(e.getAttribute("data-slot"), 10),
                                 n = re(),

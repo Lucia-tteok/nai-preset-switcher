@@ -1,4 +1,4 @@
-# NAI切换助手 v1.4.0
+# NAI切换助手 v1.4.2
 
 一个配合智绘姬（st-chatu8）使用的 NovelAI 预设管理与双击切换扩展。
 
@@ -37,7 +37,7 @@ https://github.com/Lucia-tteok/nai-preset-switcher
 
 如果你使用的是「酒馆助手（JS-Slash-Runner）」脚本库，可以导入仓库内的脚本 JSON 文件：
 ```text
-NAI切换助手 v1.4.0.json
+NAI切换助手 v1.4.2.json
 ```
 
 
@@ -94,7 +94,7 @@ NAI切换助手 v1.4.0.json
 
 - `manifest.json`：扩展清单，包含扩展名称、版本、作者和更新说明。
 - `index.js`：扩展主体代码。
-- `NAI切换助手 v1.4.0.json`：酒馆助手脚本库导入格式。
+- `NAI切换助手 v1.4.2.json`：酒馆助手脚本库导入格式。
 
 ## 注意事项
 

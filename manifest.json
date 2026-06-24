@@ -1,13 +1,13 @@
 {
-  "display_name": "NAI切换助手",
-  "loading_order": 100,
-  "requires": [],
-  "optional": [],
-  "dependencies": [],
-  "js": "index.js",
-  "css": "",
-  "author": "毫无疑问你就是我的天使",
-  "version": "1.4.1",
-  "homePage": "https://github.com/Lucia-tteok/nai-preset-switcher",
-  "changelog": "修复了vibe不绑定预设的bug"
+    "display_name": "NAI切换助手",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "dependencies": [],
+    "js": "index.js",
+    "css": "",
+    "author": "毫无疑问你就是我的天使",
+    "version": "1.4.2",
+    "homePage": "https://github.com/Lucia-tteok/nai-preset-switcher",
+    "changelog": "修复了一些bug"
 }
