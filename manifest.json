@@ -1,13 +1,13 @@
 {
-    "display_name": "NAI切换助手",
-    "loading_order": 100,
-    "requires": [],
-    "optional": [],
-    "dependencies": [],
-    "js": "index.js",
-    "css": "",
-    "author": "毫无疑问你就是我的天使",
-    "version": "1.4.2",
-    "homePage": "https://github.com/Lucia-tteok/nai-preset-switcher",
-    "changelog": "修复了一些bug"
+  "display_name": "NAI切换助手",
+  "loading_order": 100,
+  "requires": [],
+  "optional": [],
+  "dependencies": [],
+  "js": "index.js",
+  "css": "",
+  "author": "毫无疑问你就是我的天使",
+  "version": "1.4.3",
+  "homePage": "https://github.com/Lucia-tteok/nai-preset-switcher",
+  "changelog": "v1.4.3\n新增：\n- 悬浮球：在设置中勾选开启\n- 查看预览图大图：预设中单击预览图查看大图，双击上传新的预览图进行更新\n- 智绘姬参数设置修改"
 }

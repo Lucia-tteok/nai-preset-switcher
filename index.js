@@ -3,7 +3,7 @@
    弹窗内检查是否最新、显示更新内容、可选更新。不会自动检测。 */
 (function() {
     "use strict";
-    var LOCAL_VERSION = "1.4.2";
+    var LOCAL_VERSION = "1.4.3";
     var EXT_NAME = "/nai-preset-switcher"; // 扩展文件夹名，服务端会补全为 third-party/<name>
     var PANEL_ID = "nai-lib-panel-v2";
     var BAR_ID = "nai-update-bar";
@@ -196,10 +196,14 @@
         closeModal();
 
         // 遮罩
-        var mask = el("div", "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;");
+        var mask = el("div", "position:absolute;inset:0;z-index:999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;");
         mask.id = MODAL_ID;
         mask.addEventListener("click", function(ev) {
-            if (ev.target === mask) closeModal();
+            if (ev.target === mask) {
+                closeModal();
+                var panel = doc.getElementById(PANEL_ID);
+                if (panel) panel.style.display = "none";
+            }
         });
 
         // 弹窗主体
@@ -239,11 +243,8 @@
 
         mask.appendChild(box);
         var panel = doc.getElementById(PANEL_ID);
-        if (panel) {
-            panel.appendChild(mask);
-        } else {
-            doc.body.appendChild(mask);
-        }
+        if (panel) panel.appendChild(mask);
+        else doc.body.appendChild(mask);
 
         // 开始检查
         var info = await checkUpdate();
@@ -423,6 +424,384 @@
             var ctx = window.parent && window.parent.SillyTavern && window.parent.SillyTavern.getContext && window.parent.SillyTavern.getContext();
             if (ctx && ctx.saveSettingsDebounced) ctx.saveSettingsDebounced();
         } catch (e) {}
+    }
+
+    function nlShowImagePreview(e, t) {
+        if (!e) return;
+        var n = s.getElementById(r);
+        if (!n) return;
+        var a = n.querySelector(".nl-img-preview");
+        a && a.remove();
+        a = s.createElement("div"), a.className = "nl-img-preview", a.setAttribute("style", "position:absolute;inset:0;z-index:10004;display:flex;align-items:center;justify-content:center;background:rgba(20,24,30,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:18px;"), a.innerHTML = '<div style="max-width:min(92vw,520px);max-height:82vh;display:flex;flex-direction:column;gap:10px;align-items:center;"><img src="' + e + '" style="max-width:100%;max-height:72vh;border-radius:14px;object-fit:contain;box-shadow:0 18px 60px rgba(0,0,0,.32);"><div style="color:#fff;font-size:13px;text-shadow:0 1px 4px rgba(0,0,0,.45);">' + k(t || "单击空白处关闭") + "</div></div>", a.addEventListener("click", function(e) {
+            e.target === a && a.remove()
+        }), n.querySelector(".nl-box").appendChild(a)
+    }
+
+    async function nlChangePresetThumb(e, t, n) {
+        if (!e) return;
+        var r = s.createElement("input");
+        r.type = "file", r.accept = "image/*", r.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0;", r.addEventListener("change", async function(a) {
+            var i = a.target.files && a.target.files[0];
+            try {
+                if (i) {
+                    var o = await C(i);
+                    e.thumb = o, await I.put(e), E("预览图已更新", "success"), n && n(o), t && t.remove && t.remove()
+                }
+            } catch (e) {
+                E("图片处理失败", "error")
+            }
+            r.remove()
+        }), s.body.appendChild(r), r.click()
+    }
+
+    /* ===== 智绘姬参数组系统 ===== */
+    var NL_DEFAULT_PARAM_GROUP = "\u9ed8\u8ba4";
+    var NAI_PARAM_FIELDS = [{
+        id: "novelaimode",
+        label: "\u6a21\u578b",
+        type: "select",
+        options: ["nai-diffusion-3", "nai-diffusion-4-full", "nai-diffusion-4-curated-preview", "nai-diffusion-4-5-curated", "nai-diffusion-4-5-full"]
+    }, {
+        id: "novelai_sampler",
+        label: "\u91c7\u6837\u65b9\u6cd5",
+        type: "select",
+        options: [{ v: "k_euler", t: "Euler" }, { v: "ddim_v3", t: "DDIM" }, { v: "k_dpmpp_2s_ancestral", t: "DPM++ 2S Ancestral" }, { v: "k_dpmpp_2m", t: "DPM++ 2M" }, { v: "k_euler_ancestral", t: "Euler Ancestral" }, { v: "k_dpmpp_2m_sde", t: "DPM++ 2M SDE" }, { v: "k_dpmpp_sde", t: "DPM++ SDE" }]
+    }, {
+        id: "Schedule",
+        label: "\u566a\u70b9\u8868",
+        type: "select",
+        options: ["native", "exponential", "polyexponential", "karras"]
+    }, {
+        id: "novelai_size",
+        label: "\u9884\u8bbe\u5c3a\u5bf8",
+        type: "select",
+        options: ["512x512", "640x640", "512x768", "768x512", "1024x1024", "1216x832", "832x1216"]
+    }, {
+        id: "nai3Scale",
+        label: "Prompt Guidance",
+        type: "number"
+    }, {
+        id: "cfg_rescale",
+        label: "Prompt Guidance Rescale",
+        type: "number"
+    }, {
+        id: "novelai_width",
+        label: "\u5bbd\u5ea6 (width)",
+        type: "number"
+    }, {
+        id: "novelai_height",
+        label: "\u9ad8\u5ea6 (height)",
+        type: "number"
+    }, {
+        id: "novelai_steps",
+        label: "\u751f\u6210\u6b65\u6570 (steps)",
+        type: "number"
+    }, {
+        id: "novelai_seed",
+        label: "\u79cd\u5b50 (seed)",
+        type: "number"
+    }, {
+        id: "AI_use_coords",
+        label: "AI \u9ed8\u8ba4\u89d2\u8272\u4f4d\u7f6e",
+        type: "checkbox"
+    }, {
+        id: "sm",
+        label: "SMEA",
+        type: "checkbox"
+    }, {
+        id: "dyn",
+        label: "SMEA DYN",
+        type: "checkbox"
+    }, {
+        id: "nai3Variety",
+        label: "\u591a\u6837\u6027 (Variety)",
+        type: "checkbox"
+    }, {
+        id: "nai3Deceisp",
+        label: "\u51cf\u5c11\u4f2a\u5f71 (Decrisp)",
+        type: "checkbox"
+    }];
+
+    var NL_NAI_PARAM_WRITING = !1;
+
+    function nlNormalizeNaiSizeParams(params) {
+        if (!params) return params;
+        var m = String(params.novelai_size || "").match(/^(\d+)x(\d+)$/);
+        return m && (params.novelai_width = m[1], params.novelai_height = m[2]), params
+    }
+
+    function nlReadAllNaiParams() {
+        var doc = window.parent && window.parent.document || s,
+            out = {};
+        NAI_PARAM_FIELDS.forEach(function(f) {
+            try {
+                var el = doc.getElementById(f.id);
+                if (!el) return;
+                out[f.id] = "checkbox" === f.type ? !!el.checked : el.value;
+            } catch (e) {}
+        });
+        return nlNormalizeNaiSizeParams(out)
+    }
+
+    function nlWriteAllNaiParams(params) {
+        if (!params) return !1;
+        params = nlNormalizeNaiSizeParams(params);
+        var doc = window.parent && window.parent.document || s,
+            jq = window.parent && (window.parent.jQuery || window.parent.$),
+            wrote = !1;
+        NL_NAI_PARAM_WRITING = !0;
+        try {
+            NAI_PARAM_FIELDS.forEach(function(f) {
+                try {
+                    if (!(f.id in params)) return;
+                    var el = doc.getElementById(f.id);
+                    if (!el) return;
+                    if ("checkbox" === f.type) {
+                        el.checked = !!params[f.id];
+                        jq ? jq(el).prop("checked", !!params[f.id]).trigger("change") : el.dispatchEvent(new Event("change", { bubbles: !0 }))
+                    } else {
+                        el.value = params[f.id];
+                        jq ? jq(el).val(params[f.id]).trigger("input").trigger("change") : (el.dispatchEvent(new Event("input", { bubbles: !0 })), el.dispatchEvent(new Event("change", { bubbles: !0 })))
+                    }
+                    wrote = !0
+                } catch (e) {}
+            })
+        } finally {
+            NL_NAI_PARAM_WRITING = !1
+        }
+        return wrote
+    }
+
+    function nlGetParamGroups() {
+        var st = _getNaiSettings();
+        if (!st) return {};
+        return st.paramGroups && "object" == typeof st.paramGroups || (st.paramGroups = {}), st.paramGroups
+    }
+
+    function nlEnsureDefaultParamGroup() {
+        var st = _getNaiSettings();
+        if (!st) return;
+        var groups = nlGetParamGroups();
+        Object.keys(groups).length || (groups[NL_DEFAULT_PARAM_GROUP] = {
+            params: nlReadAllNaiParams(),
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        }, st.defaultParamGroup = NL_DEFAULT_PARAM_GROUP, _saveNaiSettings())
+    }
+
+    function nlSaveParamGroup(name, params) {
+        var st = _getNaiSettings();
+        if (!st) return !1;
+        var groups = nlGetParamGroups(),
+            existing = groups[name];
+        return groups[name] = {
+            params: nlNormalizeNaiSizeParams(params || existing && existing.params || {}),
+            createdAt: existing && existing.createdAt || Date.now(),
+            updatedAt: Date.now()
+        }, _saveNaiSettings(), !0
+    }
+
+    function nlCreateParamGroup(name) {
+        if (!(name = (name || "").trim())) return !1;
+        var groups = nlGetParamGroups();
+        return !Object.prototype.hasOwnProperty.call(groups, name) && (nlSaveParamGroup(name, nlReadAllNaiParams()), !0)
+    }
+
+    function nlDeleteParamGroup(name) {
+        if (name === NL_DEFAULT_PARAM_GROUP) return !1;
+        var st = _getNaiSettings();
+        if (!st) return !1;
+        var groups = nlGetParamGroups();
+        return !!groups[name] && (delete groups[name], st.activeParamGroup === name && (st.activeParamGroup = ""), _saveNaiSettings(), !0)
+    }
+
+    function nlRenameParamGroup(oldName, newName) {
+        if (newName = (newName || "").trim(), oldName === NL_DEFAULT_PARAM_GROUP) return !1;
+        if (!newName || newName === oldName) return !1;
+        var st = _getNaiSettings();
+        if (!st) return !1;
+        var groups = nlGetParamGroups();
+        return !(!groups[oldName] || groups[newName]) && (groups[newName] = groups[oldName], delete groups[oldName], groups[newName].updatedAt = Date.now(), st.activeParamGroup === oldName && (st.activeParamGroup = newName), _saveNaiSettings(), !0)
+    }
+
+    function nlApplyParamGroup(name) {
+        var groups = nlGetParamGroups(),
+            g = groups[name];
+        if (!g) return !1;
+        var st = _getNaiSettings();
+        return st && (st.activeParamGroup = name, _saveNaiSettings()), nlWriteAllNaiParams(g.params)
+    }
+
+    function nlGetActiveParamGroup() {
+        var st = _getNaiSettings(),
+            groups = nlGetParamGroups();
+        if (st && st.activeParamGroup && groups[st.activeParamGroup]) return st.activeParamGroup;
+        if (groups[NL_DEFAULT_PARAM_GROUP]) return NL_DEFAULT_PARAM_GROUP;
+        var keys = Object.keys(groups);
+        return keys.length ? keys[0] : ""
+    }
+
+    function nlApplyPresetParams(n) {
+        var groupName = n && n.naiParamGroup ? n.naiParamGroup : NL_DEFAULT_PARAM_GROUP;
+        return groupName && nlGetParamGroups()[groupName] ? nlApplyParamGroup(groupName) : nlApplyChatuNaiParams(n)
+    }
+
+    function nlRenderParamFieldInputs(idPrefix, params) {
+        params = params || {};
+        return NAI_PARAM_FIELDS.map(function(f) {
+            var val = f.id in params ? params[f.id] : "";
+            if ("select" === f.type) {
+                var optsHtml = f.options.map(function(o) {
+                    var ov = void 0 !== o.v ? o.v : o,
+                        ot = void 0 !== o.t ? o.t : o;
+                    return '<option value="' + k(ov) + '"' + (String(val) === String(ov) ? " selected" : "") + ">" + k(ot) + "</option>"
+                }).join("");
+                return '<label style="font-size:12px;color:#566472;">' + k(f.label) + '<select class="nl-input" id="' + idPrefix + f.id + '" data-pf="' + k(f.id) + '" style="margin-top:4px;">' + optsHtml + "</select></label>"
+            }
+            if ("checkbox" === f.type) return '<label style="font-size:12px;color:#566472;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="' + idPrefix + f.id + '" data-pf="' + k(f.id) + '"' + (val ? " checked" : "") + "> " + k(f.label) + "</label>";
+            return '<label style="font-size:12px;color:#566472;">' + k(f.label) + '<input type="number" class="nl-input" id="' + idPrefix + f.id + '" data-pf="' + k(f.id) + '" value="' + k(void 0 === val ? "" : val) + '" style="margin-top:4px;"></label>'
+        }).join("")
+    }
+
+    function nlReadParamFieldInputs(container, idPrefix) {
+        var out = {};
+        NAI_PARAM_FIELDS.forEach(function(f) {
+            var el = container.querySelector("#" + idPrefix + f.id);
+            el && (out[f.id] = "checkbox" === f.type ? !!el.checked : el.value)
+        });
+        return nlNormalizeNaiSizeParams(out)
+    }
+
+    function nlSyncParamSizeInputs(container, idPrefix) {
+        if (!container) return;
+        var sizeEl = container.querySelector("#" + idPrefix + "novelai_size"),
+            widthEl = container.querySelector("#" + idPrefix + "novelai_width"),
+            heightEl = container.querySelector("#" + idPrefix + "novelai_height"),
+            m = sizeEl && String(sizeEl.value || "").match(/^(\d+)x(\d+)$/);
+        m && (widthEl && (widthEl.value = m[1]), heightEl && (heightEl.value = m[2]))
+    }
+
+    function nlFillParamFieldInputs(container, idPrefix, params) {
+        params = params || {};
+        NAI_PARAM_FIELDS.forEach(function(f) {
+            var el = container && container.querySelector("#" + idPrefix + f.id);
+            el && f.id in params && ("checkbox" === f.type ? el.checked = !!params[f.id] : el.value = params[f.id])
+        })
+    }
+
+    function nlRefreshVisibleParamInputs(groupName) {
+        var panel = s.getElementById(r);
+        if (!panel) return;
+        var groups = nlGetParamGroups(), params = groupName && groups[groupName] && groups[groupName].params || nlReadAllNaiParams(), setFields = panel.querySelector("#nl-set-param-fields"), setSel = panel.querySelector("#nl-set-param-group"), detailFields = panel.querySelector("#nl-dparam-fields"), detailSel = panel.querySelector("#nl-dparam-group");
+        setFields && setSel && (!groupName || setSel.value === groupName) && nlFillParamFieldInputs(setFields, "nl-set-pf-", params);
+        detailFields && detailSel && (!groupName || detailSel.value === groupName) && nlFillParamFieldInputs(detailFields, "nl-dparam-pf-", params)
+    }
+
+    function nlBindChatuNaiParamReverseSync() {
+        var doc = window.parent && window.parent.document || s;
+        NAI_PARAM_FIELDS.forEach(function(f) {
+            try {
+                var el = doc.getElementById(f.id);
+                if (!el || el._nlNaiParamReverseBound) return;
+                el._nlNaiParamReverseBound = !0;
+                ["input", "change"].forEach(function(ev) {
+                    el.addEventListener(ev, function() {
+                        if (NL_NAI_PARAM_WRITING) return;
+                        var groupName = nlGetActiveParamGroup() || NL_DEFAULT_PARAM_GROUP, params = nlReadAllNaiParams();
+                        nlSaveParamGroup(groupName, params);
+                        nlRefreshVisibleParamInputs(groupName)
+                    })
+                })
+            } catch (e) {}
+        })
+    }
+
+    function nlGetFloatingEnabled() {
+        var e = _getNaiSettings();
+        return !!(e && e.floatingBallEnabled)
+    }
+
+    function nlSetFloatingEnabled(e) {
+        var t = _getNaiSettings();
+        t && (t.floatingBallEnabled = !!e, _saveNaiSettings()), nlRefreshFloatingBall()
+    }
+
+    function nlCurrentPresetName() {
+        try {
+            var e = W();
+            return e && (e.yusheid_novelai || "") || ""
+        } catch (e) {
+            return ""
+        }
+    }
+
+    function nlSetFloatingBallPanelOpen(e) {
+        var t = s.getElementById("nl-floating-ball-v2");
+        t && (t.style.display = e ? "none" : "flex")
+    }
+
+    function nlOpenPresetSwitcherPanel() {
+        var e = N();
+        e && (e.style.display = "flex", nlSetFloatingBallPanelOpen(!0), M("lib"))
+    }
+
+    function nlPositionFloatingBall(e, t, n) {
+        var r = 46, a = Math.max(8, (window.innerWidth || s.documentElement.clientWidth || 360) - r - 8), i = Math.max(8, (window.innerHeight || s.documentElement.clientHeight || 640) - r - 8);
+        t = Math.min(Math.max(8, t), a), n = Math.min(Math.max(8, n), i), e.style.left = t + "px", e.style.top = n + "px", e.style.right = "auto", e.style.bottom = "auto"
+    }
+
+    function nlBindFloatingDrag(e) {
+        if (e._nlDragBound) return;
+        e._nlDragBound = !0;
+        var t = 0, n = 0, r = 0, a = 0, i = !1;
+        function o(o) {
+            var l = o.touches && o.touches[0] || o;
+            t = l.clientX, n = l.clientY, r = e.offsetLeft || 0, a = e.offsetTop || 0, i = !1, e._nlMoved = !1
+        }
+        function l(o) {
+            if (!t && !n) return;
+            var l = o.touches && o.touches[0] || o, c = l.clientX - t, d = l.clientY - n;
+            (Math.abs(c) > 4 || Math.abs(d) > 4) && (i = !0, e._nlMoved = !0), i && (nlPositionFloatingBall(e, r + c, a + d), o.cancelable && o.preventDefault())
+        }
+        function c() {
+            if (t || n) {
+                var r = _getNaiSettings();
+                r && (r.floatingBallPos = {
+                    left: e.offsetLeft || 0,
+                    top: e.offsetTop || 0
+                }, _saveNaiSettings())
+            }
+            t = n = 0, setTimeout(function() {
+                e._nlMoved = !1
+            }, 80)
+        }
+        e.addEventListener("mousedown", o), window.addEventListener("mousemove", l), window.addEventListener("mouseup", c), e.addEventListener("touchstart", o, {
+            passive: !1
+        }), window.addEventListener("touchmove", l, {
+            passive: !1
+        }), window.addEventListener("touchend", c)
+    }
+
+    async function nlRefreshFloatingBall() {
+        var e = s.getElementById("nl-floating-ball-v2");
+        if (!nlGetFloatingEnabled()) return void(e && e.remove());
+        if (!e) {
+            e = s.createElement("div"), e.id = "nl-floating-ball-v2", e.setAttribute("style", "position:fixed;width:46px;height:46px;border-radius:50%;z-index:99999;overflow:hidden;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.92);border:1px solid rgba(124,108,255,.55);box-shadow:0 8px 22px rgba(40,55,70,.26);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);"), s.body.appendChild(e);
+            var t = _getNaiSettings(), n = t && t.floatingBallPos;
+            n && "number" == typeof n.left && "number" == typeof n.top ? nlPositionFloatingBall(e, n.left, n.top) : nlPositionFloatingBall(e, (window.innerWidth || 360) - 64, (window.innerHeight || 640) - 138);
+            nlBindFloatingDrag(e), e.addEventListener("click", function(t) {
+                t.preventDefault(), t.stopPropagation(), e._nlMoved || nlOpenPresetSwitcherPanel()
+            })
+        }
+        var r = nlCurrentPresetName(), a = null;
+        try {
+            var i = await I.all();
+            a = i.filter(function(e) {
+                return (e.name || "").trim() === (r || "").trim()
+            })[0] || null
+        } catch (e) {}
+        e.title = r ? "打开 NAI切换助手：" + r : "打开 NAI切换助手";
+        e.innerHTML = a && a.thumb ? '<img src="' + a.thumb + '" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;">' : '<div style="font-size:16px;color:#8a97a4;line-height:1;pointer-events:none;font-weight:700;">NAI</div>'
     }
 
     function _getChatu8Settings() {
@@ -714,6 +1093,75 @@
         }
     }
 
+    function nlGetChatuNaiParams() {
+        var e = window.parent && window.parent.document || s,
+            t = {};
+        [{
+            id: "novelai_sampler",
+            key: "naiSampler"
+        }, {
+            id: "novelai_steps",
+            key: "naiSteps"
+        }, {
+            id: "nai3Scale",
+            key: "naiPromptGuidance"
+        }, {
+            id: "cfg_rescale",
+            key: "naiPromptGuidanceRescale"
+        }].forEach(function(n) {
+            try {
+                var r = e.getElementById(n.id);
+                r && (t[n.key] = r.value)
+            } catch (e) {}
+        });
+        return t
+    }
+
+    function nlApplyChatuNaiParams(e) {
+        if (!e) return !1;
+        var t = window.parent && window.parent.document || s,
+            n = window.parent && (window.parent.jQuery || window.parent.$),
+            r = !1;
+        [{
+            id: "novelai_sampler",
+            key: "naiSampler"
+        }, {
+            id: "novelai_steps",
+            key: "naiSteps"
+        }, {
+            id: "nai3Scale",
+            key: "naiPromptGuidance"
+        }, {
+            id: "cfg_rescale",
+            key: "naiPromptGuidanceRescale"
+        }].forEach(function(a) {
+            try {
+                if (void 0 === e[a.key] || null === e[a.key]) return;
+                var i = t.getElementById(a.id);
+                i && (i.value = e[a.key], n ? n(i).val(e[a.key]).trigger("input").trigger("change") : (i.dispatchEvent(new Event("input", {
+                    bubbles: !0
+                })), i.dispatchEvent(new Event("change", {
+                    bubbles: !0
+                }))), r = !0)
+            } catch (e) {}
+        });
+        return r
+    }
+
+    function nlGetSettingsNaiParams(e) {
+        if (!e) return nlGetChatuNaiParams();
+        function t(t, n) {
+            var r = e.querySelector(t);
+            return r ? r.value : n
+        }
+        return {
+            naiSampler: t("#nl-set-nai-sampler", ""),
+            naiSteps: t("#nl-set-nai-steps", ""),
+            naiPromptGuidance: t("#nl-set-nai-guidance", ""),
+            naiPromptGuidanceRescale: t("#nl-set-nai-rescale", "")
+        }
+    }
+
     function oeCollectGroupStrengths(e) {
         var t = (re() || {})[e],
             n = {};
@@ -727,6 +1175,7 @@
         const e = (n.name || "").trim();
         if (!e) return void E("该收藏没有名称", "warning");
         Y(e, n.positive || "", n.negative || "");
+        nlApplyPresetParams(n);
         const t = function(e) {
             var t = W();
             if (!t) return !1;
@@ -758,7 +1207,7 @@
             return !1
         }(e);
         applyPresetVibeBinding(n), async function() {
-            t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), R()
+            t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), nlRefreshFloatingBall(), R()
         }()
     }
 
@@ -1231,12 +1680,23 @@
         let n = s.getElementById(r);
         return n || (function() {
             if (s.getElementById(t)) return;
-            const e = `\n#${r}{--nl-accent:#7c6cff;--nl-accent-rgb:124,108,255;}#${r}{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:100000;display:none;background:rgba(20,24,30,.28);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}\n#${r} *{box-sizing:border-box;}#${r}{color-scheme:light;}#${r}.nl-dark{color-scheme:dark;}#${r} textarea,#${r} input:not([type=range]):not([type=checkbox]):not([type=file]),#${r} select{background:#fbfcfe !important;color:#1f2a33 !important;}#${r}.nl-dark textarea,#${r}.nl-dark input:not([type=range]):not([type=checkbox]):not([type=file]),#${r}.nl-dark select{background:#262b33 !important;color:#dde2e8 !important;border-color:rgba(255,255,255,.16) !important;}\n#${r} .nl-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(860px,94vw);height:min(82vh,820px);background:rgba(255,255,255,.92);color:#1f2a33;border:1px solid rgba(255,255,255,.7);border-radius:22px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 60px rgba(40,55,70,.22);font-size:14px;}\n#${r} .nl-head{display:flex;align-items:center;gap:8px;padding:11px 16px;background:rgba(255,255,255,.45);border-bottom:1px solid rgba(120,140,160,.16);}\n#${r} .nl-head .nl-title{font-weight:600;font-size:13px;flex:0 0 auto;color:#2a3640;}\n#${r} .nl-tabs{display:flex;gap:6px;margin-left:6px;}\n#${r} .nl-tab{padding:5px 12px;font-size:13px;border-radius:20px;cursor:pointer;background:rgba(255,255,255,.5);color:#566472;border:1px solid rgba(120,140,160,.18);transition:.18s;}\n#${r} .nl-tab:hover{background:rgba(255,255,255,.85);}\n#${r} .nl-tab.active{background:rgba(255,255,255,.95);color:#1f2a33;border-color:rgba(120,140,160,.3);box-shadow:0 2px 10px rgba(40,55,70,.12);}\n#${r} .nl-close{cursor:pointer;margin-left:auto;font-size:20px;line-height:1;padding:2px 9px;border-radius:10px;color:#7a8794;}\n#${r} .nl-close:hover{background:rgba(120,140,160,.16);color:#1f2a33;}\n#${r} .nl-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px;}\n#${r} .nl-drop{border:2px dashed rgba(120,140,160,.4);border-radius:14px;padding:22px;text-align:center;color:#6b7886;cursor:pointer;transition:.15s;background:rgba(255,255,255,.4);}\n#${r} .nl-drop:hover,#${r} .nl-drop.drag{border-color:#7a8794;color:#1f2a33;background:rgba(255,255,255,.7);}\n#${r} .nl-field{margin-top:14px;}\n#${r} .nl-label{font-size:12px;color:#7a8794;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}\n#${r} .nl-ta{width:100%;min-height:72px;background:rgba(255,255,255,.7);border:1px solid rgba(120,140,160,.25);border-radius:10px;color:#1f2a33;padding:9px 11px;resize:vertical;font-family:inherit;line-height:1.5;}#${r} .nl-ta:focus{outline:none;border-color:#8fa3b5;background:rgba(255,255,255,.92);}#${r} .nl-vibe-empty{margin-top:8px;}#${r} .nl-vibe-empty .nl-btn{flex:none;width:100%;}#${r} .nl-vibe-body{display:flex;gap:12px;align-items:flex-start;margin-top:6px;}#${r} .nl-vibe-thumb{width:88px;height:88px;object-fit:cover;border-radius:10px;border:1px solid rgba(120,140,160,.3);flex:none;}#${r} .nl-vibe-ctrl{flex:1;display:flex;flex-direction:column;gap:9px;}#${r} .nl-vibe-row{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#7a8794;}#${r} .nl-vibe-row span{display:flex;justify-content:space-between;align-items:center;}#${r} .nl-vibe-row b{color:#3a4654;font-weight:600;}#${r} .nl-vibe-row select{width:100%;background:rgba(255,255,255,.7);border:1px solid rgba(120,140,160,.25);border-radius:8px;color:#1f2a33;padding:6px 8px;font-family:inherit;}#${r} .nl-vibe-row input[type=range]{width:100%;accent-color:#3a4654;}#${r} .nl-vibe-sec-title{font-size:13px;font-weight:600;color:#3a4654;margin-bottom:10px;}#${r} .nl-vibe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;}#${r} .nl-vibe-card{background:rgba(255,255,255,.55);border:1px solid rgba(120,140,160,.2);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;}#${r} .nl-vibe-card-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:7px;border:1px solid rgba(120,140,160,.25);}#${r} .nl-vibe-card-thumb.empty{display:flex;align-items:center;justify-content:center;font-size:24px;background:rgba(120,140,160,.1);color:#9aa7b3;}#${r} .nl-vibe-card-name{font-size:11px;color:#3a4654;line-height:1.25;word-break:break-all;max-height:28px;overflow:hidden;}#${r} .nl-vibe-card-acts{display:grid;grid-template-columns:1fr 1fr;gap:5px;align-items:center;}#${r} .nl-vibe-add,#${r} .nl-vibe-del{cursor:pointer;font-size:11px;padding:2px 7px;border-radius:7px;transition:.15s;text-align:center;}#${r} .nl-vibe-add{background:rgba(58,70,84,.85);color:#fff;}#${r} .nl-vibe-add:hover{background:#3a4654;}#${r} .nl-vibe-del{color:#b06070;background:rgba(176,96,112,.12);}#${r} .nl-vibe-del:hover{background:rgba(176,96,112,.25);}#${r} #nl-vibe-newgroup,#${r} #nl-vibe-renamegroup,#${r} #nl-vibe-delgroup,#${r} #nl-vibe-savegroup{flex:none;padding:7px 10px;font-size:12px;box-shadow:none;white-space:nowrap;}#${r} .nl-vibe-toggle{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#7a8794;cursor:pointer;font-weight:400;}#${r} .nl-vibe-toggle input{accent-color:#3a4654;cursor:pointer;}#${r} .nl-dvibe-slots{display:flex;flex-direction:column;gap:8px;margin-top:8px;}#${r} .nl-dvibe-slots .nl-vibe-slot{display:flex;gap:9px;align-items:flex-start;background:rgba(255,255,255,.5);border:1px solid rgba(120,140,160,.2);border-radius:10px;padding:8px;}#${r} .nl-dvibe-slots .nl-vibe-slot-thumb{width:46px;height:46px;flex:none;object-fit:cover;border-radius:8px;border:1px solid rgba(120,140,160,.25);}#${r} .nl-dvibe-slots .nl-vibe-slot-thumb.empty{display:flex;align-items:center;justify-content:center;font-size:20px;background:rgba(120,140,160,.1);color:#9aa7b3;}#${r} .nl-dvibe-slots .nl-vibe-slot-body{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;}#${r} .nl-dvibe-slots .nl-vibe-slot-name{font-size:12px;color:#3a4654;word-break:break-all;}#${r} .nl-dvibe-slots .nl-vibe-row{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#7a8794;}#${r} .nl-dvibe-slots .nl-vibe-row input[type=range]{width:100%;accent-color:#3a4654;}#${r} .nl-vibe-topbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;}#${r} .nl-vibe-grouprow{display:flex;gap:8px;align-items:center;margin-bottom:10px;}@media(max-width:600px){#${r} .nl-vibe-grid{grid-template-columns:repeat(4,1fr);gap:5px;}#${r} .nl-vibe-card{padding:4px;border-radius:8px;gap:3px;}#${r} .nl-vibe-card-thumb{border-radius:6px;}#${r} .nl-vibe-card-thumb.empty{font-size:18px;}#${r} .nl-vibe-card-name{font-size:10px;line-height:1.15;max-height:23px;}#${r} .nl-vibe-card-acts{gap:3px;}#${r} .nl-vibe-add,#${r} .nl-vibe-del{font-size:10px;padding:1px 4px;border-radius:6px;}#${r} .nl-vibe-grouprow{flex-wrap:wrap;gap:5px;}#${r} .nl-vibe-grouprow #nl-vibe-groupsel{flex:1 1 100% !important;padding:6px 8px !important;font-size:12px !important;}#${r} .nl-vibe-grouprow .nl-btn{flex:1 1 calc(25% - 4px);min-width:0 !important;font-size:11px !important;padding:5px 4px !important;min-height:28px !important;line-height:1.05 !important;}}#${r} .nl-vibe-grouprow #nl-vibe-groupsel{min-height:34px;padding:6px 10px !important;font-size:13px !important;border-radius:10px;}#${r} .nl-vibe-groupbtn{width:auto;min-height:30px !important;padding:6px 10px !important;font-size:12px !important;line-height:1.1 !important;border-radius:9px !important;white-space:nowrap;}#${r} .nl-vibe-groupcur .nl-vibe-groupbtn{min-height:30px !important;padding:6px 10px !important;}@media(max-width:600px){#${r} .nl-vibe-grouprow #nl-vibe-groupsel{min-height:34px !important;padding:6px 9px !important;font-size:12px !important;}#${r} .nl-vibe-grouprow .nl-vibe-groupbtn{flex:0 1 auto !important;min-width:0 !important;font-size:11px !important;padding:5px 8px !important;min-height:28px !important;border-radius:8px !important;}}#${r} .nl-vibe-groupcur{font-size:12px;color:#7a8794;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}#${r} .nl-vibe-slots{display:flex;flex-direction:column;gap:10px;}#${r} .nl-vibe-slot{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.5);border:1px solid rgba(120,140,160,.2);border-radius:11px;padding:9px;}#${r} .nl-vibe-slot-thumb{width:64px;height:64px;object-fit:cover;border-radius:9px;border:1px solid rgba(120,140,160,.25);flex:none;}#${r} .nl-vibe-slot-thumb.empty{display:flex;align-items:center;justify-content:center;font-size:26px;background:rgba(120,140,160,.1);color:#9aa7b3;}#${r} .nl-vibe-slot-body{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0;}#${r} .nl-vibe-slot-name{font-size:12px;color:#3a4654;font-weight:600;word-break:break-all;}#${r} .nl-vibe-slot-del{cursor:pointer;color:#b06070;font-size:13px;padding:2px 8px;border-radius:8px;align-self:flex-start;}#${r} .nl-vibe-slot-del:hover{background:rgba(176,96,112,.2);}#${r} .nl-input{width:100%;background:rgba(255,255,255,.7);border:1px solid rgba(120,140,160,.25);border-radius:10px;color:#1f2a33;padding:9px 11px;}\n#${r} .nl-input:focus{outline:none;border-color:#8fa3b5;}\n#${r} .nl-topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}\n#${r} .nl-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;}\n#${r} .nl-search-wrap{position:relative;flex:1;min-width:0;}\n#${r} .nl-search{width:100%;padding:7px 14px;border:1px solid rgba(120,140,160,.22);border-radius:20px;background:rgba(255,255,255,.6);color:#3a4654;font-size:13px;outline:none;transition:.15s;}\n#${r} .nl-search:focus{background:#fff;border-color:#3a4654;}\n@media(max-width:600px){#${r} .nl-search-wrap{min-width:120px;}}\n#${r} .nl-chips{display:flex;flex-wrap:wrap;gap:8px;}\n#${r} .nl-chip{padding:4px 10px;border-radius:16px;background:rgba(255,255,255,.6);border:1px solid rgba(120,140,160,.22);cursor:pointer;color:#566472;font-size:12px;transition:.15s;}\n#${r} .nl-chip:hover{background:rgba(255,255,255,.9);}\n#${r} .nl-chip.active{background:#3a4654;border-color:transparent;color:#fff;}\n#${r} .nl-chip.addnew{border-style:dashed;color:#8a97a4;}\n#${r} .nl-btnrow{display:flex;gap:10px;margin-top:16px;}\n#${r} .nl-btn{flex:1;padding:11px;border:none;border-radius:12px;background:#3a4654;color:#fff;font-size:14px;cursor:pointer;transition:.18s;box-shadow:0 3px 12px rgba(40,55,70,.2);}\n#${r} .nl-btn:hover{filter:brightness(1.12);}\n#${r} .nl-btn.ghost{background:rgba(255,255,255,.7);color:#3a4654;box-shadow:none;border:1px solid rgba(120,140,160,.3);}\n#${r} .nl-btn.danger{background:#d9576a;box-shadow:0 3px 12px rgba(217,87,106,.25);}#${r} .nl-detail .nl-btn{padding:9px 11px !important;font-size:13px !important;min-height:34px !important;line-height:1.15 !important;box-sizing:border-box !important;}\n#${r} .nl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}\n#${r} .nl-card{background:rgba(255,255,255,.6);border:1px solid rgba(120,140,160,.2);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}\n#${r} .nl-card:hover{transform:translateY(-3px);border-color:#8fa3b5;box-shadow:0 8px 22px rgba(40,55,70,.16);}\n#${r} .nl-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;background:rgba(120,140,160,.12);display:block;pointer-events:none;-webkit-user-drag:none;}\n#${r} .nl-thumb.empty{display:flex;align-items:center;justify-content:center;color:rgba(120,140,160,.5);font-size:30px;}\n#${r} .nl-cardinfo{padding:9px 11px;}\n#${r} .nl-cardname{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#2a3640;}\n#${r} .nl-cardcat{display:inline-block;margin-top:5px;font-size:11px;padding:2px 9px;border-radius:10px;background:rgba(120,140,160,.18);color:#566472;}\n#${r} .nl-grid.list-mode{grid-template-columns:1fr !important;gap:8px;}\n#${r} .nl-grid.list-mode .nl-card{display:flex;flex-direction:row;border-radius:10px;}\n#${r} .nl-grid.list-mode .nl-thumb{width:60px;height:60px;aspect-ratio:auto;border-radius:10px 0 0 10px;flex-shrink:0;}\n#${r} .nl-grid.list-mode .nl-thumb.empty{width:60px;height:60px;font-size:18px;}\n#${r} .nl-grid.list-mode .nl-cardinfo{display:flex;flex-direction:column;justify-content:center;padding:8px 12px;flex:1;min-width:0;}\n#${r} .nl-grid.list-mode .nl-cardname{font-size:14px;}\n#${r} .nl-card.is-current{border:2px solid #f0a020;box-shadow:0 0 8px rgba(240,160,32,.3);}\n#${r} .nl-card.is-current::after{content:'★ 使用中';position:absolute;top:6px;right:6px;background:rgba(240,160,32,.9);color:#fff;font-size:10px;padding:2px 7px;border-radius:8px;z-index:2;}\n#${r} .nl-card{position:relative;}\n#${r} .nl-viewtoggle{cursor:pointer;width:36px;height:36px;border-radius:8px;border:1px solid rgba(120,140,160,.22);background:rgba(255,255,255,.6);color:#7a8794;font-size:18px;transition:.15s;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}\n#${r} #nl-viewtoggle,#${r} #nl-randpick,#${r} #nl-multisel-btn{font-family:"Segoe UI Symbol","Noto Sans Symbols","Noto Sans Symbols2","Android Emoji","Noto Color Emoji",sans-serif!important;}#${r} #nl-randpick{font-size:24px;}#${r} #nl-multisel-btn{font-size:24px;}#${r} .nl-viewtoggle:hover{background:rgba(255,255,255,.9);}\n#${r} .nl-empty{text-align:center;color:#9aa7b4;padding:40px 0;}\n#${r} .nl-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center;}\n#${r} .nl-tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:8px;background:rgba(120,140,160,.18);color:#566472;}\n#${r} .nl-tagdropdown{position:relative;cursor:pointer;min-height:36px;padding:8px 32px 8px 10px;border:1px solid rgba(120,140,160,.3);border-radius:10px;background:rgba(255,255,255,.8);display:flex;flex-wrap:wrap;gap:4px;align-items:center;transition:.2s;}\n#${r} .nl-tagdropdown:hover{border-color:rgba(var(--nl-accent-rgb),.4);}\n#${r} .nl-tagdropdown::after{content:'▼';position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:#8a97a4;pointer-events:none;}\n#${r} .nl-tagdropdown .nl-placeholder{color:#8a97a4;font-size:13px;}\n#${r} .nl-tagpicker{position:fixed;inset:0;background:rgba(20,24,30,.45);z-index:9999;display:flex;align-items:center;justify-content:center;}\n#${r} .nl-tagpicker-box{background:#fff;border-radius:16px;padding:18px;width:min(340px,88vw);max-height:70vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);}\n#${r} .nl-tagpicker-title{font-size:15px;font-weight:600;margin-bottom:12px;color:#2a3640;}\n#${r} .nl-tagpicker-item{display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid rgba(120,140,160,.12);cursor:pointer;transition:.1s;}\n#${r} .nl-tagpicker-item:hover{background:rgba(var(--nl-accent-rgb),.06);}\n#${r} .nl-tagpicker-item .nl-tcheck{width:20px;height:20px;border-radius:6px;border:2px solid #c0c8d0;display:flex;align-items:center;justify-content:center;font-size:13px;color:transparent;transition:.15s;flex-shrink:0;}\n#${r} .nl-tagpicker-item.checked .nl-tcheck{border-color:var(--nl-accent);background:var(--nl-accent);color:#fff;}\n#${r} .nl-tagpicker-item .nl-tname{font-size:14px;color:#3a4654;}\n#${r} .nl-tagpicker-foot{display:flex;gap:10px;margin-top:14px;}\n#${r} .nl-tagpicker-foot .nl-btn{flex:1;}\n#${r} .nl-card.selected{outline:3px solid var(--nl-accent);outline-offset:-3px;opacity:.85;}\n#${r} .nl-card.selected::before{content:'✓';position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:var(--nl-accent);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;z-index:3;}\n#${r} .nl-multibar{display:flex;gap:8px;align-items:center;padding:10px 14px;background:rgba(var(--nl-accent-rgb),.08);border-radius:12px;margin-bottom:10px;}\n#${r} .nl-multibar .nl-btn{padding:8px 14px;font-size:13px;white-space:nowrap;}\n#${r} .nl-detail{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,24,30,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:5;}\n#${r} .nl-dbox{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(640px,92%);max-height:88%;overflow:auto;background:rgba(255,255,255,.78);backdrop-filter:blur(10px) saturate(150%);-webkit-backdrop-filter:blur(10px) saturate(150%);border:1px solid rgba(255,255,255,.7);border-radius:18px;padding:20px;box-shadow:0 18px 50px rgba(40,55,70,.25);}\n#${r} .nl-dimg{width:100%;max-height:280px;object-fit:contain;background:rgba(120,140,160,.12);border-radius:10px;}\n@media (max-width: 600px){#${r} .nl-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:94vw;height:85vh;max-width:none;max-height:none;border-radius:16px;font-size:14px;}#${r} .nl-head{padding:12px 14px;gap:8px;flex-wrap:wrap;}#${r} .nl-head .nl-title{font-size:13px;}#${r} .nl-tabs{margin-left:0;width:100%;order:3;gap:6px;}#${r} .nl-tab{flex:1;text-align:center;padding:8px 6px;font-size:12px;}#${r} .nl-close{font-size:24px;padding:4px 12px;margin-left:auto;}#${r} .nl-body{padding:12px;}#${r} .nl-field{margin-top:12px;}#${r} .nl-input,#${r} .nl-ta{font-size:15px;padding:9px 10px;}#${r} .nl-btnrow{gap:8px;margin-top:12px;}#${r} .nl-btn{padding:9px 11px;font-size:13px;min-height:34px;}#${r} .nl-chips{gap:7px;}#${r} .nl-chip{padding:5px 10px;font-size:12px;}#${r} .nl-drop{padding:18px;}#${r} .nl-grid{grid-template-columns:repeat(3,1fr);gap:9px;}#${r} .nl-cardinfo{padding:6px 8px;}#${r} .nl-cardname{font-size:12px;}#${r} .nl-cardcat{font-size:10px;padding:2px 7px;margin-top:4px;}#${r} .nl-grid.list-mode{gap:12px;}#${r} .nl-grid.list-mode .nl-thumb,#${r} .nl-grid.list-mode .nl-thumb.empty{width:92px;height:92px;font-size:24px;}#${r} .nl-grid.list-mode .nl-cardinfo{padding:10px 14px;}#${r} .nl-grid.list-mode .nl-cardname{font-size:15px;}#${r} .nl-grid.list-mode .nl-cardcat{font-size:11px;padding:2px 9px;margin-top:5px;}#${r} .nl-dbox{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:92vw;max-width:none;max-height:85vh;border-radius:16px;padding:16px;}#${r} .nl-dimg{max-height:220px;}\n}\n#${r} .nl-theme{cursor:pointer;font-size:17px;line-height:1;padding:2px 8px;border-radius:10px;color:#7a8794;}#${r} .nl-theme:hover{background:rgba(120,140,160,.16);color:#1f2a33;}#${r}.nl-dark{background:rgba(8,10,14,.5);}#${r}.nl-dark .nl-box{background:rgba(26,30,38,.88);color:#dde2e8;border-color:rgba(255,255,255,.08);box-shadow:0 18px 60px rgba(0,0,0,.5);}#${r}.nl-dark .nl-head{background:rgba(255,255,255,.04);border-bottom-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-title{color:#dde2e8;}#${r}.nl-dark .nl-theme,#${r}.nl-dark .nl-close{color:#aab4bf;}#${r}.nl-dark .nl-theme:hover,#${r}.nl-dark .nl-close:hover{background:rgba(255,255,255,.1);color:#fff;}#${r}.nl-dark .nl-tab{background:rgba(255,255,255,.06);color:#aab4bf;border-color:rgba(255,255,255,.1);}#${r}.nl-dark .nl-tab:hover{background:rgba(255,255,255,.12);}#${r}.nl-dark .nl-tab.active{background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.18);box-shadow:none;}#${r}.nl-dark .nl-drop{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.18);color:#aab4bf;}#${r}.nl-dark .nl-drop:hover,#${r}.nl-dark .nl-drop.drag{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.35);color:#fff;}#${r}.nl-dark .nl-label{color:#9aa7b4;}#${r}.nl-dark .nl-ta,#${r}.nl-dark .nl-input,#${r}.nl-dark .nl-search{background:rgba(255,255,255,.06);color:#dde2e8;border-color:rgba(255,255,255,.14);}#${r}.nl-dark .nl-ta:focus,#${r}.nl-dark .nl-input:focus{background:rgba(255,255,255,.1);border-color:#8fa3b5;}#${r}.nl-dark .nl-search:focus{background:rgba(255,255,255,.12);border-color:#8fa3b5;}#${r}.nl-dark .nl-chip{background:rgba(255,255,255,.06);color:#b6c0ca;border-color:rgba(255,255,255,.12);}#${r}.nl-dark .nl-chip:hover{background:rgba(255,255,255,.14);}#${r}.nl-dark .nl-chip.active{background:#5a6b80;color:#fff;border-color:transparent;}#${r}.nl-dark .nl-chip.addnew{color:#8a97a4;}#${r}.nl-dark .nl-viewtoggle,#${r}.nl-dark #nl-randpick,#${r}.nl-dark #nl-multisel-btn{background:rgba(255,255,255,.06);color:#aab4bf;border-color:rgba(255,255,255,.12);}#${r}.nl-dark .nl-viewtoggle:hover{background:rgba(255,255,255,.14);}#${r}.nl-dark .nl-card{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-card:hover{border-color:#8fa3b5;box-shadow:0 8px 22px rgba(0,0,0,.4);}#${r}.nl-dark .nl-cardname{color:#dde2e8;}#${r}.nl-dark .nl-cardcat{background:rgba(255,255,255,.1);color:#b6c0ca;}#${r}.nl-dark .nl-thumb{background:rgba(255,255,255,.06);}#${r}.nl-dark .nl-thumb.empty{color:rgba(255,255,255,.35);}#${r}.nl-dark .nl-btn.ghost{background:rgba(255,255,255,.08);color:#dde2e8;border-color:rgba(255,255,255,.16);}#${r}.nl-dark .nl-empty{color:#8a97a4;}#${r}.nl-dark .nl-multibar{background:rgba(var(--nl-accent-rgb),.16);}#${r}.nl-dark .nl-rback{background:#2a3340 !important;border-color:rgba(120,150,190,.3) !important;}#${r}.nl-dark .nl-rback>span{color:#6d8bb0 !important;text-shadow:0 2px 10px rgba(0,0,0,.4) !important;}@media(max-width:600px){#${r} .nl-multibar{flex-wrap:wrap;}#${r} .nl-multibar .nl-btn{flex:1 1 auto;white-space:nowrap;}}#${r}.nl-dark .nl-tag{background:rgba(255,255,255,.1);color:#b6c0ca;}#${r}.nl-dark .nl-tagdropdown{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);}#${r}.nl-dark .nl-tagdropdown::after{color:#aab4bf;}#${r}.nl-dark .nl-placeholder{color:#8a97a4;}#${r}.nl-dark .nl-tagpicker-box{background:rgba(30,34,42,.97);color:#dde2e8;}#${r}.nl-dark .nl-tagpicker-title{color:#eef1f4;}#${r}.nl-dark .nl-tagpicker-item{border-bottom-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-tagpicker-item:hover{background:rgba(var(--nl-accent-rgb),.14);}#${r}.nl-dark .nl-tname{color:#dde2e8;}#${r}.nl-dark .nl-tcheck{border-color:#5a6470;}#${r}.nl-dark .nl-dbox{background:rgba(26,30,38,.93);color:#dde2e8;border-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-dimg{background:rgba(255,255,255,.06);}#${r}.nl-dark .nl-vibe-sec-title,#${r}.nl-dark .nl-vibe-slot-name,#${r}.nl-dark .nl-vibe-card-name,#${r}.nl-dark .nl-vibe-row b{color:#dde2e8;}#${r}.nl-dark .nl-vibe-row,#${r}.nl-dark .nl-vibe-groupcur,#${r}.nl-dark .nl-vibe-toggle{color:#9aa7b4;}#${r}.nl-dark .nl-vibe-card,#${r}.nl-dark .nl-vibe-slot{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-vibe-thumb,#${r}.nl-dark .nl-vibe-card-thumb,#${r}.nl-dark .nl-vibe-slot-thumb{border-color:rgba(255,255,255,.14);}#${r}.nl-dark .nl-vibe-row select,#${r}.nl-dark #nl-vibe-groupsel,#${r}.nl-dark .nl-vibe-grouprow select{background:rgba(40,46,56,.95);color:#dde2e8;border-color:rgba(255,255,255,.14);}`,
+            const e = `\n#${r}{--nl-accent:#7c6cff;--nl-accent-rgb:124,108,255;}#${r}{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:100000;display:none;background:rgba(20,24,30,.28);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}\n#${r} *{box-sizing:border-box;}#${r}{color-scheme:light;}#${r}.nl-dark{color-scheme:dark;}#${r} textarea,#${r} input:not([type=range]):not([type=checkbox]):not([type=file]),#${r} select{background:#fbfcfe !important;color:#1f2a33 !important;}#${r}.nl-dark textarea,#${r}.nl-dark input:not([type=range]):not([type=checkbox]):not([type=file]),#${r}.nl-dark select{background:#262b33 !important;color:#dde2e8 !important;border-color:rgba(255,255,255,.16) !important;}\n#${r} .nl-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(860px,94vw);height:min(82vh,820px);background:rgba(255,255,255,.92);color:#1f2a33;border:1px solid rgba(255,255,255,.7);border-radius:22px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 60px rgba(40,55,70,.22);font-size:14px;}\n#${r} .nl-head{position:relative;z-index:10001;display:flex;align-items:center;gap:8px;padding:11px 16px;background:rgba(255,255,255,.45);border-bottom:1px solid rgba(120,140,160,.16);}\n#${r} .nl-head .nl-title{font-weight:600;font-size:13px;flex:0 0 auto;color:#2a3640;}
+#${r} .nl-tabs{display:flex;gap:6px;margin-left:6px;}\n#${r} .nl-tab{padding:5px 12px;font-size:13px;border-radius:20px;cursor:pointer;background:rgba(255,255,255,.5);color:#566472;border:1px solid rgba(120,140,160,.18);transition:.18s;}\n#${r} .nl-tab:hover{background:rgba(255,255,255,.85);}\n#${r} .nl-tab.active{background:rgba(255,255,255,.95);color:#1f2a33;border-color:rgba(120,140,160,.3);box-shadow:0 2px 10px rgba(40,55,70,.12);}\n#${r} .nl-close{position:relative;z-index:10002;touch-action:manipulation;cursor:pointer;margin-left:auto;font-size:20px;line-height:1;padding:2px 9px;border-radius:10px;color:#7a8794;}\n#${r} .nl-close:hover{background:rgba(120,140,160,.16);color:#1f2a33;}\n#${r} .nl-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px;}\n#${r} .nl-drop{border:2px dashed rgba(120,140,160,.4);border-radius:14px;padding:22px;text-align:center;color:#6b7886;cursor:pointer;transition:.15s;background:rgba(255,255,255,.4);}\n#${r} .nl-drop:hover,#${r} .nl-drop.drag{border-color:#7a8794;color:#1f2a33;background:rgba(255,255,255,.7);}\n#${r} .nl-field{margin-top:14px;}\n#${r} .nl-label{font-size:12px;color:#7a8794;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}\n#${r} .nl-ta{width:100%;min-height:72px;background:rgba(255,255,255,.7);border:1px solid rgba(120,140,160,.25);border-radius:10px;color:#1f2a33;padding:9px 11px;resize:vertical;font-family:inherit;line-height:1.5;}#${r} .nl-ta:focus{outline:none;border-color:#8fa3b5;background:rgba(255,255,255,.92);}#${r} .nl-vibe-empty{margin-top:8px;}#${r} .nl-vibe-empty .nl-btn{flex:none;width:100%;}#${r} .nl-vibe-body{display:flex;gap:12px;align-items:flex-start;margin-top:6px;}#${r} .nl-vibe-thumb{width:88px;height:88px;object-fit:cover;border-radius:10px;border:1px solid rgba(120,140,160,.3);flex:none;}#${r} .nl-vibe-ctrl{flex:1;display:flex;flex-direction:column;gap:9px;}#${r} .nl-vibe-row{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#7a8794;}#${r} .nl-vibe-row span{display:flex;justify-content:space-between;align-items:center;}#${r} .nl-vibe-row b{color:#3a4654;font-weight:600;}#${r} .nl-vibe-row select{width:100%;background:rgba(255,255,255,.7);border:1px solid rgba(120,140,160,.25);border-radius:8px;color:#1f2a33;padding:6px 8px;font-family:inherit;}#${r} .nl-vibe-row input[type=range]{width:100%;accent-color:#3a4654;}#${r} .nl-vibe-sec-title{font-size:13px;font-weight:600;color:#3a4654;margin-bottom:10px;}#${r} .nl-vibe-listwrap{max-height:330px;overflow-y:auto;padding-right:4px;}#${r} .nl-vibe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;}#${r} .nl-vibe-card{background:rgba(255,255,255,.55);border:1px solid rgba(120,140,160,.2);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;}#${r} .nl-vibe-card-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:7px;border:1px solid rgba(120,140,160,.25);}#${r} .nl-vibe-card-thumb.empty{display:flex;align-items:center;justify-content:center;font-size:24px;background:rgba(120,140,160,.1);color:#9aa7b3;}#${r} .nl-vibe-card-name{font-size:11px;color:#3a4654;line-height:1.25;word-break:break-all;max-height:28px;overflow:hidden;}#${r} .nl-vibe-card-acts{display:grid;grid-template-columns:1fr 1fr;gap:5px;align-items:center;}#${r} .nl-vibe-add,#${r} .nl-vibe-del{cursor:pointer;font-size:11px;padding:2px 7px;border-radius:7px;transition:.15s;text-align:center;}#${r} .nl-vibe-add{background:rgba(58,70,84,.85);color:#fff;}#${r} .nl-vibe-add:hover{background:#3a4654;}#${r} .nl-vibe-del{color:#b06070;background:rgba(176,96,112,.12);}#${r} .nl-vibe-del:hover{background:rgba(176,96,112,.25);}#${r} #nl-vibe-newgroup,#${r} #nl-vibe-renamegroup,#${r} #nl-vibe-delgroup,#${r} #nl-vibe-savegroup{flex:none;padding:7px 10px;font-size:12px;box-shadow:none;white-space:nowrap;}#${r} .nl-vibe-toggle{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#7a8794;cursor:pointer;font-weight:400;}#${r} .nl-vibe-toggle input{accent-color:#3a4654;cursor:pointer;}#${r} .nl-dvibe-slots{display:flex;flex-direction:column;gap:8px;margin-top:8px;}#${r} .nl-dvibe-slots .nl-vibe-slot{display:flex;gap:9px;align-items:flex-start;background:rgba(255,255,255,.5);border:1px solid rgba(120,140,160,.2);border-radius:10px;padding:8px;}#${r} .nl-dvibe-slots .nl-vibe-slot-thumb{width:46px;height:46px;flex:none;object-fit:cover;border-radius:8px;border:1px solid rgba(120,140,160,.25);}#${r} .nl-dvibe-slots .nl-vibe-slot-thumb.empty{display:flex;align-items:center;justify-content:center;font-size:20px;background:rgba(120,140,160,.1);color:#9aa7b3;}#${r} .nl-dvibe-slots .nl-vibe-slot-body{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;}#${r} .nl-dvibe-slots .nl-vibe-slot-name{font-size:12px;color:#3a4654;word-break:break-all;}#${r} .nl-dvibe-slots .nl-vibe-row{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#7a8794;}#${r} .nl-dvibe-slots .nl-vibe-row input[type=range]{width:100%;accent-color:#3a4654;}#${r} .nl-vibe-topbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;}#${r} .nl-vibe-grouprow{display:flex;gap:8px;align-items:center;margin-bottom:10px;}@media(max-width:600px){#${r} .nl-vibe-listwrap{max-height:270px;}#${r} .nl-vibe-grid{grid-template-columns:repeat(4,1fr);gap:5px;}#${r} .nl-vibe-card{padding:4px;border-radius:8px;gap:3px;}#${r} .nl-vibe-card-thumb{border-radius:6px;}#${r} .nl-vibe-card-thumb.empty{font-size:18px;}#${r} .nl-vibe-card-name{font-size:10px;line-height:1.15;max-height:23px;}#${r} .nl-vibe-card-acts{gap:3px;}#${r} .nl-vibe-add,#${r} .nl-vibe-del{font-size:10px;padding:1px 4px;border-radius:6px;}#${r} .nl-vibe-grouprow{flex-wrap:wrap;gap:5px;}#${r} .nl-vibe-grouprow #nl-vibe-groupsel{flex:1 1 100% !important;padding:6px 8px !important;font-size:12px !important;}#${r} .nl-vibe-grouprow .nl-btn{flex:1 1 calc(25% - 4px);min-width:0 !important;font-size:11px !important;padding:5px 4px !important;min-height:28px !important;line-height:1.05 !important;}}#${r} .nl-vibe-grouprow #nl-vibe-groupsel{min-height:34px;padding:6px 10px !important;font-size:13px !important;border-radius:10px;}#${r} .nl-vibe-groupbtn{width:auto;min-height:30px !important;padding:6px 10px !important;font-size:12px !important;line-height:1.1 !important;border-radius:9px !important;white-space:nowrap;}#${r} .nl-vibe-groupcur .nl-vibe-groupbtn{min-height:30px !important;padding:6px 10px !important;}@media(max-width:600px){#${r} .nl-vibe-grouprow #nl-vibe-groupsel{min-height:34px !important;padding:6px 9px !important;font-size:12px !important;}#${r} .nl-vibe-grouprow .nl-vibe-groupbtn{flex:0 1 auto !important;min-width:0 !important;font-size:11px !important;padding:5px 8px !important;min-height:28px !important;border-radius:8px !important;}}#${r} .nl-vibe-groupcur{font-size:12px;color:#7a8794;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}#${r} .nl-vibe-slots{display:flex;flex-direction:column;gap:10px;}#${r} .nl-vibe-slot{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.5);border:1px solid rgba(120,140,160,.2);border-radius:11px;padding:9px;}#${r} .nl-vibe-slot-thumb{width:64px;height:64px;object-fit:cover;border-radius:9px;border:1px solid rgba(120,140,160,.25);flex:none;}#${r} .nl-vibe-slot-thumb.empty{display:flex;align-items:center;justify-content:center;font-size:26px;background:rgba(120,140,160,.1);color:#9aa7b3;}#${r} .nl-vibe-slot-body{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0;}#${r} .nl-vibe-slot-name{font-size:12px;color:#3a4654;font-weight:600;word-break:break-all;}#${r} .nl-vibe-slot-del{cursor:pointer;color:#b06070;font-size:13px;padding:2px 8px;border-radius:8px;align-self:flex-start;}#${r} .nl-vibe-slot-del:hover{background:rgba(176,96,112,.2);}#${r} .nl-input{width:100%;background:rgba(255,255,255,.7);border:1px solid rgba(120,140,160,.25);border-radius:10px;color:#1f2a33;padding:9px 11px;}\n#${r} .nl-input:focus{outline:none;border-color:#8fa3b5;}\n#${r} .nl-topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}\n#${r} .nl-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;}\n#${r} .nl-search-wrap{position:relative;flex:1;min-width:0;}\n#${r} .nl-search{width:100%;padding:7px 14px;border:1px solid rgba(120,140,160,.22);border-radius:20px;background:rgba(255,255,255,.6);color:#3a4654;font-size:13px;outline:none;transition:.15s;}\n#${r} .nl-search:focus{background:#fff;border-color:#3a4654;}\n@media(max-width:600px){#${r} .nl-search-wrap{min-width:120px;}}\n#${r} .nl-chips{display:flex;flex-wrap:wrap;gap:8px;}\n#${r} .nl-chip{padding:4px 10px;border-radius:16px;background:rgba(255,255,255,.6);border:1px solid rgba(120,140,160,.22);cursor:pointer;color:#566472;font-size:12px;transition:.15s;}\n#${r} .nl-chip:hover{background:rgba(255,255,255,.9);}\n#${r} .nl-chip.active{background:#3a4654;border-color:transparent;color:#fff;}\n#${r} .nl-chip.addnew{border-style:dashed;color:#8a97a4;}\n#${r} .nl-btnrow{display:flex;gap:10px;margin-top:16px;}\n#${r} .nl-btn{flex:1;padding:11px;border:none;border-radius:12px;background:#3a4654;color:#fff;font-size:14px;cursor:pointer;transition:.18s;box-shadow:0 3px 12px rgba(40,55,70,.2);}\n#${r} .nl-btn:hover{filter:brightness(1.12);}\n#${r} .nl-btn.ghost{background:rgba(255,255,255,.7);color:#3a4654;box-shadow:none;border:1px solid rgba(120,140,160,.3);}\n#${r} .nl-btn.danger{background:#d9576a;box-shadow:0 3px 12px rgba(217,87,106,.25);}#${r} .nl-detail .nl-btn{padding:9px 11px !important;font-size:13px !important;min-height:34px !important;line-height:1.15 !important;box-sizing:border-box !important;}\n#${r} .nl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}\n#${r} .nl-card{background:rgba(255,255,255,.6);border:1px solid rgba(120,140,160,.2);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}\n#${r} .nl-card:hover{transform:translateY(-3px);border-color:#8fa3b5;box-shadow:0 8px 22px rgba(40,55,70,.16);}\n#${r} .nl-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;background:rgba(120,140,160,.12);display:block;-webkit-user-drag:none;}\n#${r} .nl-thumb.empty{display:flex;align-items:center;justify-content:center;color:rgba(120,140,160,.5);font-size:30px;}\n#${r} .nl-cardinfo{padding:9px 11px;}\n#${r} .nl-cardname{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#2a3640;}\n#${r} .nl-cardcat{display:inline-block;margin-top:5px;font-size:11px;padding:2px 9px;border-radius:10px;background:rgba(120,140,160,.18);color:#566472;}\n#${r} .nl-grid.list-mode{grid-template-columns:1fr !important;gap:8px;}\n#${r} .nl-grid.list-mode .nl-card{display:flex;flex-direction:row;border-radius:10px;}\n#${r} .nl-grid.list-mode .nl-thumb{width:60px;height:60px;aspect-ratio:auto;border-radius:10px 0 0 10px;flex-shrink:0;}\n#${r} .nl-grid.list-mode .nl-thumb.empty{width:60px;height:60px;font-size:18px;}\n#${r} .nl-grid.list-mode .nl-cardinfo{display:flex;flex-direction:column;justify-content:center;padding:8px 12px;flex:1;min-width:0;}\n#${r} .nl-grid.list-mode .nl-cardname{font-size:14px;}\n#${r} .nl-card.is-current{border:2px solid #f0a020;box-shadow:0 0 8px rgba(240,160,32,.3);}\n#${r} .nl-card.is-current::after{content:'★ 使用中';position:absolute;top:6px;right:6px;background:rgba(240,160,32,.9);color:#fff;font-size:10px;padding:2px 7px;border-radius:8px;z-index:2;}\n#${r} .nl-card{position:relative;}\n#${r} .nl-viewtoggle{cursor:pointer;width:36px;height:36px;border-radius:8px;border:1px solid rgba(120,140,160,.22);background:rgba(255,255,255,.6);color:#7a8794;font-size:18px;transition:.15s;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}\n#${r} #nl-viewtoggle,#${r} #nl-randpick,#${r} #nl-multisel-btn{font-family:"Segoe UI Symbol","Noto Sans Symbols","Noto Sans Symbols2","Android Emoji","Noto Color Emoji",sans-serif!important;}#${r} #nl-randpick{font-size:24px;}#${r} #nl-multisel-btn{font-size:24px;}#${r} .nl-viewtoggle:hover{background:rgba(255,255,255,.9);}\n#${r} .nl-empty{text-align:center;color:#9aa7b4;padding:40px 0;}\n#${r} .nl-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center;}\n#${r} .nl-tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:8px;background:rgba(120,140,160,.18);color:#566472;}\n#${r} .nl-tagdropdown{position:relative;cursor:pointer;min-height:36px;padding:8px 32px 8px 10px;border:1px solid rgba(120,140,160,.3);border-radius:10px;background:rgba(255,255,255,.8);display:flex;flex-wrap:wrap;gap:4px;align-items:center;transition:.2s;}\n#${r} .nl-tagdropdown:hover{border-color:rgba(var(--nl-accent-rgb),.4);}\n#${r} .nl-tagdropdown::after{content:'▼';position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:#8a97a4;pointer-events:none;}\n#${r} .nl-tagdropdown .nl-placeholder{color:#8a97a4;font-size:13px;}\n#${r} .nl-tagpicker{position:fixed;inset:0;background:rgba(20,24,30,.45);z-index:9999;display:flex;align-items:center;justify-content:center;}\n#${r} .nl-tagpicker-box{background:#fff;border-radius:16px;padding:18px;width:min(340px,88vw);max-height:70vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);}\n#${r} .nl-tagpicker-title{font-size:15px;font-weight:600;margin-bottom:12px;color:#2a3640;}\n#${r} .nl-tagpicker-item{display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid rgba(120,140,160,.12);cursor:pointer;transition:.1s;}\n#${r} .nl-tagpicker-item:hover{background:rgba(var(--nl-accent-rgb),.06);}\n#${r} .nl-tagpicker-item .nl-tcheck{width:20px;height:20px;border-radius:6px;border:2px solid #c0c8d0;display:flex;align-items:center;justify-content:center;font-size:13px;color:transparent;transition:.15s;flex-shrink:0;}\n#${r} .nl-tagpicker-item.checked .nl-tcheck{border-color:var(--nl-accent);background:var(--nl-accent);color:#fff;}\n#${r} .nl-tagpicker-item .nl-tname{font-size:14px;color:#3a4654;}\n#${r} .nl-tagpicker-foot{display:flex;gap:10px;margin-top:14px;}\n#${r} .nl-tagpicker-foot .nl-btn{flex:1;}\n#${r} .nl-card.selected{outline:3px solid var(--nl-accent);outline-offset:-3px;opacity:.85;}\n#${r} .nl-card.selected::before{content:'✓';position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:var(--nl-accent);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;z-index:3;}\n#${r} .nl-multibar{display:flex;gap:8px;align-items:center;padding:10px 14px;background:rgba(var(--nl-accent-rgb),.08);border-radius:12px;margin-bottom:10px;}\n#${r} .nl-multibar .nl-btn{padding:8px 14px;font-size:13px;white-space:nowrap;}\n#${r} .nl-detail{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,24,30,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:10003;}\n#${r} .nl-dbox{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(640px,92%);max-height:88%;overflow:auto;background:rgba(255,255,255,.78);backdrop-filter:blur(10px) saturate(150%);-webkit-backdrop-filter:blur(10px) saturate(150%);border:1px solid rgba(255,255,255,.7);border-radius:18px;padding:20px;box-shadow:0 18px 50px rgba(40,55,70,.25);}\n#${r} .nl-dimg{width:100%;max-height:280px;object-fit:contain;background:rgba(120,140,160,.12);border-radius:10px;}\n@media (max-width: 600px){
+#${r} .nl-box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:94vw;height:85vh;max-width:none;max-height:none;border-radius:16px;font-size:14px;}#${r} .nl-head{padding:12px 14px;gap:8px;flex-wrap:wrap;}#${r} .nl-head .nl-title{font-size:13px;}#${r} .nl-tabs{margin-left:0;width:100%;order:3;gap:6px;}#${r} .nl-tab{flex:1;text-align:center;padding:8px 6px;font-size:12px;}#${r} .nl-close{font-size:24px;padding:4px 12px;margin-left:auto;}#${r} .nl-body{padding:12px;}#${r} .nl-field{margin-top:12px;}#${r} .nl-input,#${r} .nl-ta{font-size:15px;padding:9px 10px;}#${r} .nl-btnrow{gap:8px;margin-top:12px;}#${r} .nl-btn{padding:9px 11px;font-size:13px;min-height:34px;}#${r} .nl-chips{gap:7px;}#${r} .nl-chip{padding:5px 10px;font-size:12px;}#${r} .nl-drop{padding:18px;}#${r} .nl-grid{grid-template-columns:repeat(3,1fr);gap:9px;}#${r} .nl-cardinfo{padding:6px 8px;}#${r} .nl-cardname{font-size:12px;}#${r} .nl-cardcat{font-size:10px;padding:2px 7px;margin-top:4px;}#${r} .nl-grid.list-mode{gap:12px;}#${r} .nl-grid.list-mode .nl-thumb,#${r} .nl-grid.list-mode .nl-thumb.empty{width:92px;height:92px;font-size:24px;}#${r} .nl-grid.list-mode .nl-cardinfo{padding:10px 14px;}#${r} .nl-grid.list-mode .nl-cardname{font-size:15px;}#${r} .nl-grid.list-mode .nl-cardcat{font-size:11px;padding:2px 9px;margin-top:5px;}#${r} .nl-dbox{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:92vw;max-width:none;max-height:85vh;border-radius:16px;padding:16px;}#${r} .nl-dimg{max-height:220px;}\n}\n#${r} .nl-theme{cursor:pointer;font-size:17px;line-height:1;padding:2px 8px;border-radius:10px;color:#7a8794;}#${r} .nl-theme:hover{background:rgba(120,140,160,.16);color:#1f2a33;}#${r}.nl-dark{background:rgba(8,10,14,.5);}#${r}.nl-dark .nl-box{background:rgba(26,30,38,.88);color:#dde2e8;border-color:rgba(255,255,255,.08);box-shadow:0 18px 60px rgba(0,0,0,.5);}#${r}.nl-dark .nl-head{background:rgba(255,255,255,.04);border-bottom-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-title{color:#dde2e8;}#${r}.nl-dark .nl-theme,#${r}.nl-dark .nl-close{color:#aab4bf;}#${r}.nl-dark .nl-theme:hover,#${r}.nl-dark .nl-close:hover{background:rgba(255,255,255,.1);color:#fff;}#${r}.nl-dark .nl-tab{background:rgba(255,255,255,.06);color:#aab4bf;border-color:rgba(255,255,255,.1);}#${r}.nl-dark .nl-tab:hover{background:rgba(255,255,255,.12);}#${r}.nl-dark .nl-tab.active{background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.18);box-shadow:none;}#${r}.nl-dark .nl-drop{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.18);color:#aab4bf;}#${r}.nl-dark .nl-drop:hover,#${r}.nl-dark .nl-drop.drag{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.35);color:#fff;}#${r}.nl-dark .nl-label{color:#9aa7b4;}#${r}.nl-dark .nl-ta,#${r}.nl-dark .nl-input,#${r}.nl-dark .nl-search{background:rgba(255,255,255,.06);color:#dde2e8;border-color:rgba(255,255,255,.14);}#${r}.nl-dark .nl-ta:focus,#${r}.nl-dark .nl-input:focus{background:rgba(255,255,255,.1);border-color:#8fa3b5;}#${r}.nl-dark .nl-search:focus{background:rgba(255,255,255,.12);border-color:#8fa3b5;}#${r}.nl-dark .nl-chip{background:rgba(255,255,255,.06);color:#b6c0ca;border-color:rgba(255,255,255,.12);}#${r}.nl-dark .nl-chip:hover{background:rgba(255,255,255,.14);}#${r}.nl-dark .nl-chip.active{background:#5a6b80;color:#fff;border-color:transparent;}#${r}.nl-dark .nl-chip.addnew{color:#8a97a4;}#${r}.nl-dark .nl-viewtoggle,#${r}.nl-dark #nl-randpick,#${r}.nl-dark #nl-multisel-btn{background:rgba(255,255,255,.06);color:#aab4bf;border-color:rgba(255,255,255,.12);}#${r}.nl-dark .nl-viewtoggle:hover{background:rgba(255,255,255,.14);}#${r}.nl-dark .nl-card{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-card:hover{border-color:#8fa3b5;box-shadow:0 8px 22px rgba(0,0,0,.4);}#${r}.nl-dark .nl-cardname{color:#dde2e8;}#${r}.nl-dark .nl-cardcat{background:rgba(255,255,255,.1);color:#b6c0ca;}#${r}.nl-dark .nl-thumb{background:rgba(255,255,255,.06);}#${r}.nl-dark .nl-thumb.empty{color:rgba(255,255,255,.35);}#${r}.nl-dark .nl-btn.ghost{background:rgba(255,255,255,.08);color:#dde2e8;border-color:rgba(255,255,255,.16);}#${r}.nl-dark .nl-empty{color:#8a97a4;}#${r}.nl-dark .nl-multibar{background:rgba(var(--nl-accent-rgb),.16);}#${r}.nl-dark .nl-rback{background:#2a3340 !important;border-color:rgba(120,150,190,.3) !important;}#${r}.nl-dark .nl-rback>span{color:#6d8bb0 !important;text-shadow:0 2px 10px rgba(0,0,0,.4) !important;}@media(max-width:600px){#${r} .nl-multibar{flex-wrap:wrap;}#${r} .nl-multibar .nl-btn{flex:1 1 auto;white-space:nowrap;}}#${r}.nl-dark .nl-tag{background:rgba(255,255,255,.1);color:#b6c0ca;}#${r}.nl-dark .nl-tagdropdown{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);}#${r}.nl-dark .nl-tagdropdown::after{color:#aab4bf;}#${r}.nl-dark .nl-placeholder{color:#8a97a4;}#${r}.nl-dark .nl-tagpicker-box{background:rgba(30,34,42,.97);color:#dde2e8;}#${r}.nl-dark .nl-tagpicker-title{color:#eef1f4;}#${r}.nl-dark .nl-tagpicker-item{border-bottom-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-tagpicker-item:hover{background:rgba(var(--nl-accent-rgb),.14);}#${r}.nl-dark .nl-tname{color:#dde2e8;}#${r}.nl-dark .nl-tcheck{border-color:#5a6470;}#${r}.nl-dark .nl-dbox{background:rgba(26,30,38,.93);color:#dde2e8;border-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-dimg{background:rgba(255,255,255,.06);}#${r}.nl-dark .nl-vibe-sec-title,#${r}.nl-dark .nl-vibe-slot-name,#${r}.nl-dark .nl-vibe-card-name,#${r}.nl-dark .nl-vibe-row b{color:#dde2e8;}#${r}.nl-dark .nl-vibe-row,#${r}.nl-dark .nl-vibe-groupcur,#${r}.nl-dark .nl-vibe-toggle{color:#9aa7b4;}#${r}.nl-dark .nl-vibe-card,#${r}.nl-dark .nl-vibe-slot{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08);}#${r}.nl-dark .nl-vibe-thumb,#${r}.nl-dark .nl-vibe-card-thumb,#${r}.nl-dark .nl-vibe-slot-thumb{border-color:rgba(255,255,255,.14);}#${r}.nl-dark .nl-vibe-row select,#${r}.nl-dark #nl-vibe-groupsel,#${r}.nl-dark .nl-vibe-grouprow select{background:rgba(40,46,56,.95);color:#dde2e8;border-color:rgba(255,255,255,.14);}`,
                 n = s.createElement("style");
             n.id = t, n.textContent = e, s.head.appendChild(n)
-        }(), n = s.createElement("div"), n.id = r, n.innerHTML = `\n<div class="nl-box"><div class="nl-head"><span class="nl-title">${e}</span><div class="nl-tabs"><div class="nl-tab active" data-tab="lib">收藏库</div><div class="nl-tab" data-tab="parse">导入预设</div><div class="nl-tab" data-tab="vibe">Vibe 库</div></div><span class="nl-theme" title="日夜切换">◐</span><span class="nl-close">&times;</span></div><div class="nl-body" data-view="lib"></div><div class="nl-body" data-view="parse" style="display:none;"></div><div class="nl-body" data-view="vibe" style="display:none;"></div>\n</div>`, s.body.appendChild(n), n.querySelector(".nl-close").addEventListener("click", () => {
-            nlConfirmVibePendingIfVibeTab() && (n.style.display = "none")
-        }), (function() {
+        }(), n = s.createElement("div"), n.id = r, n.innerHTML = `\n<div class="nl-box"><div class="nl-head"><span class="nl-title">${e}</span><div class="nl-tabs"><div class="nl-tab active" data-tab="lib">收藏库</div><div class="nl-tab" data-tab="vibe">Vibe 库</div><div class="nl-tab" data-tab="parse">设置</div></div><span class="nl-theme" title="日夜切换">◐</span><span class="nl-close">&times;</span></div><div class="nl-body" data-view="lib"></div><div class="nl-body" data-view="parse" style="display:none;"></div><div class="nl-body" data-view="vibe" style="display:none;"></div>\n</div>`, s.body.appendChild(n),
+        n._nlClosePresetSwitcherPanel = function(e) {
+            try {
+                e && (e.preventDefault(), e.stopPropagation());
+                var ok = nlConfirmVibePendingIfVibeTab();
+                if (ok) {
+                    try { closeModal(); } catch (err) {}
+                    n.style.display = "none";
+                    try { nlSetFloatingBallPanelOpen(!1); } catch (err) {}
+                }
+            } catch (err) {}
+        }, n._nlCloseBtn = n.querySelector(".nl-close"), n._nlCloseBtn.addEventListener("click", n._nlClosePresetSwitcherPanel), window.PointerEvent && n._nlCloseBtn.addEventListener("pointerup", n._nlClosePresetSwitcherPanel), (function() {
             try {
                 var _ns = _getNaiSettings();
                 var _thm = _ns && _ns.theme || null;
@@ -1256,7 +1716,9 @@
                 } catch (e) {}
             })
         })(), n.addEventListener("click", e => {
-            e.target === n && nlConfirmVibePendingIfVibeTab() && (n.style.display = "none")
+            e.target === n && n._nlClosePresetSwitcherPanel(e)
+        }), window.PointerEvent && n.addEventListener("pointerup", e => {
+            e.target === n && n._nlClosePresetSwitcherPanel(e)
         }), n.querySelectorAll(".nl-tab").forEach(e => {
             e.addEventListener("click", () => M(e.getAttribute("data-tab")))
         }), n)
@@ -1277,7 +1739,14 @@
     function B() {
         const e = s.getElementById(r).querySelector('.nl-body[data-view="parse"]'),
             t = c;
-        e.innerHTML = `\n<div class="nl-drop" id="nl-drop" style="${t?"display:none;":""}">点击或拖入 NovelAI / SD 图片解析提示词</div>\n<input type="file" id="nl-file" accept="image/*" style="display:none;">\n<div class="nl-drop" id="nl-directimport" style="margin-top:10px;${t?"display:none;":""}">直接导入（手动填写）</div>\n<div id="nl-result" style="${t?"":"display:none;"}"><div class="nl-field"><div class="nl-label"><span>来源：${t?k(t.source||""):""}</span></div>${t&&t.thumb?`<img src="${t.thumb}" class="nl-dimg" id="nl-parse-thumb" style="max-height:200px;margin-bottom:6px;cursor:pointer;" title="点击更换">`:'<div id="nl-parse-thumb" style="cursor:pointer;text-align:center;padding:16px;border:1px dashed rgba(120,140,160,.3);border-radius:10px;color:#8a97a4;font-size:13px;">点击上传预览图（可选）</div>'}<input type="file" id="nl-parse-thumbfile" accept="image/*" style="display:none;"></div><div class="nl-field"><div class="nl-label"><span>正面提示词</span><span class="nl-acts" style="display:inline-flex;align-items:center;gap:9px;"><span class="nl-copy" data-copy="pos" style="cursor:pointer;color:#7a8794;font-size:14px;line-height:1;" title="复制">⧉</span><span class="nl-expand" data-exp="pos" style="cursor:pointer;color:#7a8794;font-size:18px;line-height:1;" title="展开">⤢</span></span></div><textarea class="nl-ta" id="nl-pos">${t?k(t.positive||""):""}</textarea></div><div class="nl-field"><div class="nl-label"><span>负面提示词</span><span class="nl-acts" style="display:inline-flex;align-items:center;gap:9px;"><span class="nl-copy" data-copy="neg" style="cursor:pointer;color:#7a8794;font-size:14px;line-height:1;" title="复制">⧉</span><span class="nl-expand" data-exp="neg" style="cursor:pointer;color:#7a8794;font-size:18px;line-height:1;" title="展开">⤢</span></span></div><textarea class="nl-ta" id="nl-neg">${t?k(t.negative||""):""}</textarea></div><div class="nl-field"><div class="nl-label"><span>命名</span></div><input class="nl-input" id="nl-name" placeholder="给这组提示词起个名字，例如：清冷古风少女"></div><div class="nl-field"><div class="nl-label"><span>预设标签</span></div><div class="nl-tags" id="nl-parse-tags" style="cursor:pointer;min-height:32px;padding:6px;border:1px solid rgba(120,140,160,.25);border-radius:10px;background:rgba(255,255,255,.7);"><span class="nl-tag" style="color:#8a97a4;border:1px dashed #aaa;background:transparent;">点击选择标签</span></div></div><div class="nl-btnrow"><button class="nl-btn ghost" id="nl-parse-close" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">关闭</button><button class="nl-btn" id="nl-save" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">保存到收藏库</button></div>\n</div>`;
+        nlEnsureDefaultParamGroup();
+        nlBindChatuNaiParamReverseSync();
+        var currentParamGroup = nlGetActiveParamGroup(),
+            currentParamGroups = nlGetParamGroups(),
+            currentNaiParams = currentParamGroup && currentParamGroups[currentParamGroup] && currentParamGroups[currentParamGroup].params ? currentParamGroups[currentParamGroup].params : nlReadAllNaiParams(),
+            currentParamKeys = Object.keys(currentParamGroups).sort(function(a,b){ return a===NL_DEFAULT_PARAM_GROUP?-1:b===NL_DEFAULT_PARAM_GROUP?1:a.localeCompare(b,"zh-CN"); }),
+            currentParamOptions = currentParamKeys.map(function(g){ return '<option value="'+k(g)+'"'+(g===currentParamGroup?' selected':'')+'>'+k(g)+'</option>'; }).join("");
+        e.innerHTML = `\n<div class="nl-drop" id="nl-drop" style="${t?"display:none;":""}">点击或拖入 NovelAI / SD 图片解析提示词</div>\n<input type="file" id="nl-file" accept="image/*" style="display:none;">\n<div class="nl-drop" id="nl-directimport" style="margin-top:10px;${t?"display:none;":""}">直接导入（手动填写）</div>\n<div class="nl-field" id="nl-floating-settings" style="margin-top:10px;border:1px solid rgba(120,140,160,.25);border-radius:10px;padding:10px;background:rgba(255,255,255,.5);display:flex;align-items:center;justify-content:space-between;gap:12px;${t?"display:none;":""}"><div><div style="font-size:13px;color:#566472;font-weight:600;">悬浮球</div><div style="font-size:12px;color:#8a97a4;margin-top:3px;">圆形显示当前预设预览图</div></div><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#566472;white-space:nowrap;"><input type="checkbox" id="nl-floating-toggle"${nlGetFloatingEnabled()?" checked":""}> 开启悬浮球</label></div>\n<div class="nl-field" id="nl-settings-nai-params" style="margin-top:10px;border:1px solid rgba(120,140,160,.25);border-radius:10px;padding:10px;background:rgba(255,255,255,.5);${t?"display:none;":""}"><div style="font-size:13px;color:#566472;font-weight:600;margin-bottom:8px;">智绘姬参数</div><div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;"><select class="nl-input" id="nl-set-param-group" style="flex:1 1 auto;min-width:0;margin:0;">${currentParamOptions || '<option value="">（暂无参数组）</option>'}</select><button class="nl-btn ghost nl-set-param-btn" data-pa="new" style="flex:0 0 auto;font-size:11px!important;padding:4px 6px!important;min-height:26px!important;line-height:1.1!important;">新建</button><button class="nl-btn ghost nl-set-param-btn" data-pa="rename" style="flex:0 0 auto;font-size:11px!important;padding:4px 6px!important;min-height:26px!important;line-height:1.1!important;">重命名</button><button class="nl-btn ghost nl-set-param-btn" data-pa="del" style="flex:0 0 auto;font-size:11px!important;padding:4px 6px!important;min-height:26px!important;line-height:1.1!important;">删组</button></div><div id="nl-set-param-fields" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">${nlRenderParamFieldInputs("nl-set-pf-", currentNaiParams)}</div></div>\n<div id="nl-result" style="${t?"":"display:none;"}"><div class="nl-field"><div class="nl-label"><span>来源：${t?k(t.source||""):""}</span></div>${t&&t.thumb?`<img src="${t.thumb}" class="nl-dimg" id="nl-parse-thumb" style="max-height:200px;margin-bottom:6px;cursor:pointer;" title="点击更换">`:'<div id="nl-parse-thumb" style="cursor:pointer;text-align:center;padding:16px;border:1px dashed rgba(120,140,160,.3);border-radius:10px;color:#8a97a4;font-size:13px;">点击上传预览图（可选）</div>'}<input type="file" id="nl-parse-thumbfile" accept="image/*" style="display:none;"></div><div class="nl-field"><div class="nl-label"><span>正面提示词</span><span class="nl-acts" style="display:inline-flex;align-items:center;gap:9px;"><span class="nl-copy" data-copy="pos" style="cursor:pointer;color:#7a8794;font-size:14px;line-height:1;" title="复制">⧉</span><span class="nl-expand" data-exp="pos" style="cursor:pointer;color:#7a8794;font-size:18px;line-height:1;" title="展开">⤢</span></span></div><textarea class="nl-ta" id="nl-pos">${t?k(t.positive||""):""}</textarea></div><div class="nl-field"><div class="nl-label"><span>负面提示词</span><span class="nl-acts" style="display:inline-flex;align-items:center;gap:9px;"><span class="nl-copy" data-copy="neg" style="cursor:pointer;color:#7a8794;font-size:14px;line-height:1;" title="复制">⧉</span><span class="nl-expand" data-exp="neg" style="cursor:pointer;color:#7a8794;font-size:18px;line-height:1;" title="展开">⤢</span></span></div><textarea class="nl-ta" id="nl-neg">${t?k(t.negative||""):""}</textarea></div><div class="nl-field"><div class="nl-label"><span>命名</span></div><input class="nl-input" id="nl-name" placeholder="给这组提示词起个名字，例如：清冷古风少女"></div><div class="nl-field"><div class="nl-label"><span>预设标签</span></div><div class="nl-tags" id="nl-parse-tags" style="cursor:pointer;min-height:32px;padding:6px;border:1px solid rgba(120,140,160,.25);border-radius:10px;background:rgba(255,255,255,.7);"><span class="nl-tag" style="color:#8a97a4;border:1px dashed #aaa;background:transparent;">点击选择标签</span></div></div><div class="nl-btnrow"><button class="nl-btn ghost" id="nl-parse-close" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">关闭</button><button class="nl-btn" id="nl-save" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">保存到收藏库</button></div>\n</div>`;
         const n = e.querySelector("#nl-parse-tags");
 
         function a() {
@@ -1355,6 +1824,71 @@
                 E("图片处理失败", "error")
             }
         }));
+        (function(){
+            var box = e.querySelector("#nl-settings-nai-params"),
+                sel = e.querySelector("#nl-set-param-group"),
+                fields = e.querySelector("#nl-set-param-fields");
+            if (!box || !sel || !fields) return;
+            function cur(){ return sel.value || nlGetActiveParamGroup() || NL_DEFAULT_PARAM_GROUP; }
+            function keys(){ var gs = nlGetParamGroups(); return Object.keys(gs).sort(function(a,b){ return a===NL_DEFAULT_PARAM_GROUP?-1:b===NL_DEFAULT_PARAM_GROUP?1:a.localeCompare(b,"zh-CN"); }); }
+            function refresh(group){
+                var gs = nlGetParamGroups(), ks = keys(), cg = group || cur();
+                if (!ks.length){ nlEnsureDefaultParamGroup(); gs = nlGetParamGroups(); ks = keys(); }
+                if (!gs[cg]) cg = gs[NL_DEFAULT_PARAM_GROUP] ? NL_DEFAULT_PARAM_GROUP : ks[0];
+                sel.innerHTML = ks.map(function(g){ return '<option value="'+k(g)+'"'+(g===cg?' selected':'')+'>'+k(g)+'</option>'; }).join("");
+                sel.value = cg || "";
+                fields.innerHTML = nlRenderParamFieldInputs("nl-set-pf-", gs[cg] && gs[cg].params || nlReadAllNaiParams());
+                bindFields();
+            }
+            function saveApply(ev){
+                var cg = cur();
+                if (!cg) return;
+                ev && ev.target && ev.target.getAttribute("data-pf") === "novelai_size" && nlSyncParamSizeInputs(fields, "nl-set-pf-");
+                var params = nlReadParamFieldInputs(fields, "nl-set-pf-");
+                nlSaveParamGroup(cg, params);
+                nlApplyParamGroup(cg);
+            }
+            function bindFields(){
+                fields.querySelectorAll("[data-pf]").forEach(function(el) {
+                    ["input", "change"].forEach(function(ev) {
+                        el.addEventListener(ev, saveApply)
+                    })
+                });
+            }
+            sel.addEventListener("change", function(){
+                refresh(sel.value);
+                nlApplyParamGroup(sel.value);
+            });
+            box.querySelectorAll(".nl-set-param-btn").forEach(function(btn){
+                btn.addEventListener("click", function(){
+                    var act = btn.getAttribute("data-pa"), cg = cur();
+                    if (act === "new") {
+                        var nm = prompt("输入新参数组名称：");
+                        if (!nm || !(nm = nm.trim())) return;
+                        if (nlGetParamGroups()[nm]) return void E("已存在同名参数组", "error");
+                        nlCreateParamGroup(nm, nlReadParamFieldInputs(fields, "nl-set-pf-"));
+                        refresh(nm); nlApplyParamGroup(nm); E("已创建并启用参数组「"+nm+"」", "success");
+                    } else if (act === "rename") {
+                        if (!cg) return void E("暂无参数组", "warning");
+                        if (cg === NL_DEFAULT_PARAM_GROUP) return void E("默认组不可重命名", "warning");
+                        var nn = prompt("重命名参数组「"+cg+"」为：", cg);
+                        if (!nn || !(nn = nn.trim()) || nn === cg) return;
+                        if (nlGetParamGroups()[nn]) return void E("已存在同名参数组", "error");
+                        nlRenameParamGroup(cg, nn) ? (refresh(nn), nlApplyParamGroup(nn), E("已重命名为「"+nn+"」", "success")) : E("重命名失败", "error");
+                    } else if (act === "del") {
+                        if (!cg) return void E("暂无参数组", "warning");
+                        if (cg === NL_DEFAULT_PARAM_GROUP) return void E("默认组不可删除", "warning");
+                        if (!confirm("删除参数组「"+cg+"」？")) return;
+                        nlDeleteParamGroup(cg) ? (refresh(""), nlApplyParamGroup(cur()), E("已删除参数组「"+cg+"」", "success")) : E("删除失败", "error");
+                    }
+                })
+            });
+            bindFields();
+        })();
+        var ft = e.querySelector("#nl-floating-toggle");
+        ft && ft.addEventListener("change", function() {
+            nlSetFloatingEnabled(ft.checked)
+        });
         const v = e.querySelector("#nl-parse-close");
         v && v.addEventListener("click", () => {
             c = null, d = [], B()
@@ -1372,6 +1906,9 @@
             } catch (e) {}
             if (n && !confirm("已存在名为「" + t + "」的预设，继续保存将覆盖它，是否继续？")) return;
             const vibeBinding = getCurrentVibeBinding(),
+                _setpc = e.querySelector("#nl-settings-nai-params"),
+                naiParams = _setpc ? nlReadParamFieldInputs(_setpc, "nl-set-pf-") : nlGetSettingsNaiParams(e),
+                _activeParamGroup = nlGetActiveParamGroup(),
                 r = {
                     id: n ? n.id : S(),
                     name: t,
@@ -1384,13 +1921,19 @@
                     sortOrder: n && typeof n.sortOrder === "number" ? n.sortOrder : (_allrecs.reduce((m, x) => typeof x.sortOrder === "number" && x.sortOrder < m ? x.sortOrder : m, 0) - 1),
                     vibeEnabled: vibeBinding.vibeEnabled,
                     vibeGroup: vibeBinding.vibeGroup,
-                    vibeStrengths: vibeBinding.vibeStrengths
+                    vibeStrengths: vibeBinding.vibeStrengths,
+                    naiSampler: naiParams.novelai_sampler,
+                    naiSteps: naiParams.novelai_steps,
+                    naiPromptGuidance: naiParams.nai3Scale,
+                    naiPromptGuidanceRescale: naiParams.cfg_rescale,
+                    naiParamGroup: n && n.naiParamGroup || NL_DEFAULT_PARAM_GROUP,
+                    naiParams: naiParams
                 };
             try {
                 await I.put(r);
                 var a = !1;
                 try {
-                    W() && (Y(t, r.positive, r.negative), a = !0)
+                    W() && (Y(t, r.positive, r.negative), nlApplyPresetParams(r), a = !0)
                 } catch (e) {}
                 E(a ? n ? "已覆盖并同步智绘姬预设" : "已保存到收藏库并同步为智绘姬预设" : n ? "已覆盖收藏库预设" : "已保存到收藏库", "success"), c = null, d = [], M("lib")
             } catch (e) {
@@ -1530,8 +2073,8 @@
             }).join("") + '<span class="nl-chip" id="nl-addcat-chip" data-fcat="__addnew__" style="font-size:14px;cursor:pointer;">+</span>';
         let q;
         q = L.length ? `<div class="nl-grid${"list"===v?" list-mode":""}">` + L.map(e => {
-            const t = e.thumb ? `<img class="nl-thumb" src="${e.thumb}" decoding="async" loading="lazy">` : '<div class="nl-thumb empty">&#128247;</div>';
-            return `<div class="nl-card${e.name===a?" is-current":""}${b&&g.has(e.id)?" selected":""}" data-id="${e.id}">${t}<div class="nl-cardinfo"><div class="nl-cardname">${k(e.name||"未命名")}</div><div class="nl-tags">${h(e).map(e=>`<span class="nl-tag">${k(e)}</span>`).join("")}</div></div>\n</div>`
+            const t = e.thumb ? `<img class="nl-thumb" draggable="false" oncontextmenu="return false" src="${e.thumb}" decoding="async" loading="lazy">` : '<div class="nl-thumb empty">&#128247;</div>';
+            return `<div oncontextmenu="return false" class="nl-card${e.name===a?" is-current":""}${b&&g.has(e.id)?" selected":""}" data-id="${e.id}">${t}<div class="nl-cardinfo"><div class="nl-cardname">${k(e.name||"未命名")}</div><div class="nl-tags">${h(e).map(e=>`<span class="nl-tag">${k(e)}</span>`).join("")}</div></div>\n</div>`
         }).join("") + "</div>" : '<div class="nl-empty">还没有收藏，去"导入预设"标签添加吧</div>', t.innerHTML = `\n<div style="margin-bottom:10px;"><div class="nl-chips" id="nl-filter">${j}</div>\n</div>\n<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;"><div class="nl-search-wrap"><input type="text" class="nl-search" id="nl-search-input" placeholder="搜索预设名称..." value="${k(u)}"></div><span class="nl-viewtoggle" id="nl-viewtoggle" title="${"grid"===v?"列表视图":"网格视图"}">${"grid"===v?"☰":"☷"}</span><span class="nl-viewtoggle" id="nl-randpick" title="随机抽取">⚄</span><span class="nl-viewtoggle" id="nl-multisel-btn" title="多选" style="${b?"background:var(--nl-accent);color:#fff;border-color:var(--nl-accent);":""}">${b?"✕":"☑"}</span>\n</div>\n${b?'<div class="nl-multibar" id="nl-multibar"><span style="font-size:13px;color:#566472;" id="nl-selcount">已选 0 项</span><button class="nl-btn ghost" id="nl-sel-all" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">全选</button><button class="nl-btn ghost" id="nl-sel-tag" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">改标签</button><button class="nl-btn ghost" id="nl-sel-auto" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">自动分类</button><button class="nl-btn danger" id="nl-sel-del" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">删除</button></div>':""}\n${q}`, t.querySelectorAll(".nl-chip[data-fcat]").forEach(e => {
             e.addEventListener("click", () => {
                 const t = e.getAttribute("data-fcat");
@@ -1802,6 +2345,7 @@
             }
             cont.querySelectorAll(".nl-card").forEach(function(card) {
                 card.addEventListener("pointerdown", function(ev) {
+                    if (ev.target && ev.target.tagName && "img" === ev.target.tagName.toLowerCase()) ev.preventDefault();
                     if (b) return;
                     sx = ev.clientX;
                     sy = ev.clientY;
@@ -2005,7 +2549,7 @@
         const a = t.querySelector(".nl-detail");
         a && a.remove();
         const i = s.createElement("div");
-        i.className = "nl-detail", i.innerHTML = `\n<div class="nl-dbox">${n.thumb?`<img class="nl-dimg" id="nl-dthumbimg" src="${n.thumb}" style="cursor:pointer;" title="点击更换预览图">`:'<div class="nl-thumb empty" id="nl-dthumbimg" style="cursor:pointer;height:120px;display:flex;align-items:center;justify-content:center;pointer-events:auto;">点击上传预览图</div>'}<input type="file" id="nl-dthumbfile" accept="image/*" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0;"><div class="nl-field"><div class="nl-label"><span>名称</span></div><input class="nl-input" id="nl-dname" value="${k(n.name||"未命名")}" style="font-size:15px;font-weight:600;"></div><div class="nl-field"><div class="nl-label"><span>预设标签</span></div><div class="nl-tagdropdown" id="nl-detail-tags">${h(n).map(e=>`<span class="nl-tag">${k(e)}</span>`).join("")||'<span class="nl-placeholder">点击选择标签</span>'}</div></div><div class="nl-field"><div class="nl-label"><span>正面提示词</span><span class="nl-acts" style="display:inline-flex;align-items:center;gap:9px;"><span class="nl-copy" data-copy="pos" style="cursor:pointer;color:#7a8794;font-size:14px;line-height:1;" title="复制">⧉</span><span class="nl-expand" data-exp="pos" style="cursor:pointer;color:#7a8794;font-size:18px;line-height:1;" title="展开">⤢</span></span></div><textarea class="nl-ta" id="nl-dpos">${k(n.positive||"")}</textarea></div><div class="nl-field"><div class="nl-label"><span>负面提示词</span><span class="nl-acts" style="display:inline-flex;align-items:center;gap:9px;"><span class="nl-copy" data-copy="neg" style="cursor:pointer;color:#7a8794;font-size:14px;line-height:1;" title="复制">⧉</span><span class="nl-expand" data-exp="neg" style="cursor:pointer;color:#7a8794;font-size:18px;line-height:1;" title="展开">⤢</span></span></div><textarea class="nl-ta" id="nl-dneg">${k(n.negative||"")}</textarea></div><div class="nl-field"><details class="nl-dvibe-details" style="border:1px solid rgba(120,140,160,.25);border-radius:10px;padding:8px 10px;background:rgba(255,255,255,.5);"><summary style="cursor:pointer;font-size:13px;color:#566472;font-weight:600;outline:none;">Vibe 叠加组</summary><div style="display:flex;align-items:center;gap:10px;margin:8px 0;"><select class="nl-input" id="nl-dvibe-group"${n.vibeEnabled?"":" disabled"} style="flex:1;margin:0;"></select><label class="nl-vibe-toggle" style="display:inline-flex;align-items:center;white-space:nowrap;margin:0;"><input type="checkbox" id="nl-dvibe-enable"${n.vibeEnabled?" checked":""}> 启用</label></div><div class="nl-dvibe-slots" id="nl-dvibe-slots"></div></details></div><div class="nl-btnrow"><button class="nl-btn danger" id="nl-del" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">删除</button><button class="nl-btn" id="nl-applychatu" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">设为当前预设</button></div><div class="nl-btnrow"><button class="nl-btn ghost" id="nl-dclose" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">关闭</button></div>\n</div>`, t.querySelector(".nl-box").appendChild(i), i.addEventListener("click", e => {
+        i.className = "nl-detail", i.innerHTML = `\n<div class="nl-dbox">${n.thumb?`<img class="nl-dimg" id="nl-dthumbimg" src="${n.thumb}" style="cursor:zoom-in;" title="单击查看大图，双击更换预览图">`:'<div class="nl-thumb empty" id="nl-dthumbimg" style="cursor:zoom-in;height:120px;display:flex;align-items:center;justify-content:center;pointer-events:auto;">单击查看大图，双击更换预览图</div>'}<input type="file" id="nl-dthumbfile" accept="image/*" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0;"><div class="nl-field"><div class="nl-label"><span>名称</span></div><input class="nl-input" id="nl-dname" value="${k(n.name||"未命名")}" style="font-size:15px;font-weight:600;"></div><div class="nl-field"><div class="nl-label"><span>预设标签</span></div><div class="nl-tagdropdown" id="nl-detail-tags">${h(n).map(e=>`<span class="nl-tag">${k(e)}</span>`).join("")||'<span class="nl-placeholder">点击选择标签</span>'}</div></div><div class="nl-field"><div class="nl-label"><span>正面提示词</span><span class="nl-acts" style="display:inline-flex;align-items:center;gap:9px;"><span class="nl-copy" data-copy="pos" style="cursor:pointer;color:#7a8794;font-size:14px;line-height:1;" title="复制">⧉</span><span class="nl-expand" data-exp="pos" style="cursor:pointer;color:#7a8794;font-size:18px;line-height:1;" title="展开">⤢</span></span></div><textarea class="nl-ta" id="nl-dpos">${k(n.positive||"")}</textarea></div><div class="nl-field"><div class="nl-label"><span>负面提示词</span><span class="nl-acts" style="display:inline-flex;align-items:center;gap:9px;"><span class="nl-copy" data-copy="neg" style="cursor:pointer;color:#7a8794;font-size:14px;line-height:1;" title="复制">⧉</span><span class="nl-expand" data-exp="neg" style="cursor:pointer;color:#7a8794;font-size:18px;line-height:1;" title="展开">⤢</span></span></div><textarea class="nl-ta" id="nl-dneg">${k(n.negative||"")}</textarea></div><div class="nl-field"><details class="nl-dvibe-details" style="border:1px solid rgba(120,140,160,.25);border-radius:10px;padding:8px 10px;background:rgba(255,255,255,.5);"><summary style="cursor:pointer;font-size:13px;color:#566472;font-weight:600;outline:none;">Vibe 叠加组</summary><div style="display:flex;align-items:center;gap:10px;margin:8px 0;"><select class="nl-input" id="nl-dvibe-group"${n.vibeEnabled?"":" disabled"} style="flex:1;margin:0;"></select><label class="nl-vibe-toggle" style="display:inline-flex;align-items:center;white-space:nowrap;margin:0;"><input type="checkbox" id="nl-dvibe-enable"${n.vibeEnabled?" checked":""}> 启用</label></div><div class="nl-dvibe-slots" id="nl-dvibe-slots"></div></details></div><div class="nl-field"><details class="nl-dparam-details" style="border:1px solid rgba(120,140,160,.25);border-radius:10px;padding:8px 10px;background:rgba(255,255,255,.5);"><summary style="cursor:pointer;font-size:13px;color:#566472;font-weight:600;outline:none;">智绘姬参数</summary><div style="display:flex;align-items:center;gap:8px;margin:8px 0;"><select class="nl-input" id="nl-dparam-group" style="flex:1;margin:0;"></select></div><div class="nl-dparam-fields" id="nl-dparam-fields" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;"></div></details></div><div class="nl-btnrow"><button class="nl-btn danger" id="nl-del" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">删除</button><button class="nl-btn" id="nl-applychatu" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">设为当前预设</button></div><div class="nl-btnrow"><button class="nl-btn ghost" id="nl-dclose" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">关闭</button></div>\n</div>`, t.querySelector(".nl-box").appendChild(i), i.addEventListener("click", e => {
             e.target === i && i.remove()
         }), i.querySelector("#nl-dclose").addEventListener("click", () => i.remove()), i.querySelectorAll(".nl-copy").forEach(e => {
             e.addEventListener("click", () => {
@@ -2092,6 +2636,7 @@
                         st.yushe[nm].fixedPrompt = n.positive || "", st.yushe[nm].negativePrompt = n.negative || "";
                         X();
                         if (st.yusheid_novelai === nm) {
+                            nlApplyPresetParams(n);
                             var pd = window.parent && window.parent.document || document,
                                 jq = window.parent && (window.parent.jQuery || window.parent.$);
                             [{
@@ -2131,7 +2676,7 @@
                                 return t.vibeDataId === e.vibeDataId
                             })[0],
                             a = t ? t.name : "（未知）" + (e.vibeDataId || "").slice(0, 8),
-                            i = t && t.thumb ? '<img class="nl-vibe-slot-thumb" src="' + t.thumb + '">' : '<div class="nl-vibe-slot-thumb empty">&#127912;</div>',
+                            i = t && t.thumb ? '<img class="nl-vibe-slot-thumb" draggable="false" oncontextmenu="return false" src="' + t.thumb + '">' : '<div class="nl-vibe-slot-thumb empty">&#127912;</div>',
                             o = "number" == typeof n.vibeStrengths[e.vibeDataId] ? n.vibeStrengths[e.vibeDataId] : "number" == typeof e.strength ? e.strength : .6;
                         return '<div class="nl-vibe-slot" data-vid="' + k(e.vibeDataId) + '">' + i + '<div class="nl-vibe-slot-body"><div class="nl-vibe-slot-name">' + k(a) + '</div><label class="nl-vibe-row"><span>强度 <b class="nl-slot-strv">' + o.toFixed(2) + '</b></span><input type="range" class="nl-dslot-strength" data-vid="' + k(e.vibeDataId) + '" min="0" max="1" step="0.01" value="' + o + '"></label></div></div>'
                     }).join(""), g.querySelectorAll(".nl-dslot-strength").forEach(function(e) {
@@ -2179,6 +2724,7 @@
                 const e = (n.name || "").trim();
                 if (!e) return void E("该收藏没有名称", "warning");
                 Y(e, n.positive || "", n.negative || "");
+                nlApplyPresetParams(n);
                 const t = function(e) {
                     var t = W();
                     if (!t) return !1;
@@ -2209,21 +2755,74 @@
                     } catch (e) {}
                     return !1
                 }(e);
-                applyPresetVibeBinding(n), async function() {
-                    t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), R()
-                }()
+            applyPresetVibeBinding(n), async function() {
+                t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), nlRefreshFloatingBall(), R()
+            }()
+        });
+        (function(){
+            var pg = i.querySelector("#nl-dparam-group"),
+                pf = i.querySelector("#nl-dparam-fields");
+            if (!pg || !pf) return;
+            function curGroup(){ return n.naiParamGroup || NL_DEFAULT_PARAM_GROUP; }
+            function sortedKeys(groups){ return Object.keys(groups).sort(function(a,b){ return a===NL_DEFAULT_PARAM_GROUP?-1:b===NL_DEFAULT_PARAM_GROUP?1:a.localeCompare(b,"zh-CN"); }); }
+            function fillGroupSel(){
+                nlEnsureDefaultParamGroup();
+                nlBindChatuNaiParamReverseSync();
+                var groups = nlGetParamGroups(), keys = sortedKeys(groups), cg = curGroup();
+                if (cg && !groups[cg]) cg = "";
+                if (!cg) cg = groups[NL_DEFAULT_PARAM_GROUP] ? NL_DEFAULT_PARAM_GROUP : keys[0];
+                n.naiParamGroup = cg || "";
+                pg.innerHTML = keys.length ? keys.map(function(e){ return '<option value="'+k(e)+'"'+(e===cg?' selected':'')+'>'+k(e)+'</option>'; }).join("") : '<option value="">（暂无参数组）</option>';
+                pg.value = cg || "";
+            }
+            function fillFields(){
+                var groups = nlGetParamGroups(), cg = curGroup(), g = groups[cg], params = g && g.params || {};
+                pf.innerHTML = nlRenderParamFieldInputs("nl-dparam-pf-", params);
+                bindFields();
+            }
+            async function saveAndApply(ev){
+                var sg = curGroup();
+                if (!sg) return;
+                ev && ev.target && ev.target.getAttribute("data-pf") === "novelai_size" && nlSyncParamSizeInputs(pf, "nl-dparam-pf-");
+                var params = nlReadParamFieldInputs(pf, "nl-dparam-pf-");
+                nlSaveParamGroup(sg, params);
+                n.naiParamGroup = sg;
+                n.naiParams = params;
+                await I.put(n);
+                nlApplyParamGroup(sg);
+            }
+            function bindFields(){
+                pf.querySelectorAll("[data-pf]").forEach(function(el){
+                    ["input", "change"].forEach(function(ev){
+                        el.addEventListener(ev, saveAndApply)
+                    })
+                })
+            }
+            fillGroupSel(); fillFields();
+            pg.addEventListener("change", async function(){
+                n.naiParamGroup = pg.value;
+                n.naiParams = (nlGetParamGroups()[pg.value] || {}).params || {};
+                await I.put(n);
+                fillFields();
+                nlApplyParamGroup(pg.value);
             });
+        })();
         const $ = i.querySelector("#nl-dthumbimg"),
             S = i.querySelector("#nl-dthumbfile");
-        $ && S && ($.addEventListener("click", () => S.click()), S.addEventListener("change", async e => {
-            const t = e.target.files[0];
-            if (t) try {
-                const e = await C(t);
-                n.thumb = e, await I.put(n), E("预览图已更新", "success"), i.remove(), Q(n.id), R()
-            } catch (e) {
-                E("图片处理失败", "error")
-            }
-        })), i.querySelector("#nl-del").addEventListener("click", async () => {
+        if ($) {
+            $.addEventListener("click", function(e) {
+                e.stopPropagation();
+                $._nlDThumbClickT && clearTimeout($._nlDThumbClickT), $._nlDThumbClickT = setTimeout(function() {
+                    $._nlDThumbClickT = null, n.thumb ? nlShowImagePreview(n.thumb, n.name) : E("该预设暂无预览图", "info")
+                }, 260)
+            });
+            $.addEventListener("dblclick", function(e) {
+                e.stopPropagation(), e.preventDefault(), $._nlDThumbClickT && (clearTimeout($._nlDThumbClickT), $._nlDThumbClickT = null), nlChangePresetThumb(n, i, function() {
+                    nlRefreshFloatingBall(), R(), Q(n.id)
+                })
+            })
+        }
+        S && S.remove(), i.querySelector("#nl-del").addEventListener("click", async () => {
             if (confirm('确定删除"' + (n.name || "未命名") + '"？')) {
                 await I.del(e), w(n.name);
                 try {
@@ -2311,48 +2910,6 @@
         } catch (e) {}
         return e
     }
-
-    function Z(e, t) {
-        if (!e || !t) return !1;
-        if (e.image !== t.image) return !1;
-        if (!e.encodings || !t.encodings) return !1;
-        var n = Object.keys(e.encodings).sort(),
-            r = Object.keys(t.encodings).sort();
-        if (n.length !== r.length) return !1;
-        for (var a = 0; a < n.length; a++) {
-            if (n[a] !== r[a]) return !1;
-            if (JSON.stringify(e.encodings[n[a]]) !== JSON.stringify(t.encodings[r[a]])) return !1
-        }
-        return !0
-    }
-    async function ee(e) {
-        try {
-            var t = W(),
-                n = {},
-                r = t && t.vibePresets || {};
-            Object.keys(r).forEach(function(e) {
-                var t = r[e];
-                t && t.vibeDataId && (n[t.vibeDataId] = !0)
-            });
-            var a = t && t.vibeGroups || {};
-            Object.keys(a).forEach(function(e) {
-                var t = a[e];
-                t && Array.isArray(t.vibes) && t.vibes.forEach(function(e) {
-                    e.vibeDataId && (n[e.vibeDataId] = !0)
-                })
-            });
-            for (var i = Object.keys(n), o = 0; o < i.length; o++) try {
-                var l = await D(i[o]);
-                if (l && l.data)
-                    if (Z(e, JSON.parse(l.data))) return i[o]
-            } catch (e) {}
-        } catch (e) {}
-        return null
-    }
-
-    function te(e) {
-        return !(!e || "object" != typeof e || "novelai-vibe-transfer" !== e.identifier || 1 !== e.version || "string" != typeof e.image || !e.encodings || "object" != typeof e.encodings)
-    }
     function _vibeImageSrc(e) {
         return "string" == typeof e && 0 === e.indexOf("data:") ? e : "data:image/png;base64," + e
     }
@@ -2395,38 +2952,6 @@
             n && X()
         } catch (e) {}
     }
-    async function ne(e) {
-        var t = W();
-        if (!t) return null;
-        t.vibePresets && "object" == typeof t.vibePresets || (t.vibePresets = {});
-        var n, r = e.thumbnail || "";
-        if (!r && e.image) try {
-            r = await _makeVibeThumbnail(e.image)
-        } catch (e) {}
-        var a = e.name || "Vibe " + (new Date).toLocaleDateString(),
-            i = await ee(e);
-        i || (i = _(), await A(i, JSON.stringify(e), !1, "text"));
-        var o = null;
-        try {
-            if (e.image) {
-                var l = _vibeImageSrc(e.image);
-                o = _(), await A(o, l, !1, "image")
-            }
-        } catch (e) {
-            o = null
-        }
-        for (var c = a, d = c, p = 2; Object.prototype.hasOwnProperty.call(t.vibePresets, d);) d = c + " (" + p + ")", p++;
-        var u = e.importInfo && "object" == typeof e.importInfo ? e.importInfo : {};
-        return t.vibePresets[d] = {
-            model: u.model || "nai-diffusion-4-5-full",
-            infoExtract: 1,
-            strength: "number" == typeof u.strength ? u.strength : .6,
-            imageId: o,
-            vibeDataId: i,
-            thumbnail: r || null
-        }, X(), d
-    }
-
     function re() {
         var e = W();
         return e ? (e.vibeGroups || (e.vibeGroups = {}), e.vibeGroups) : null
@@ -2675,10 +3200,10 @@
             }();
         let i;
         a && n[a] ? oe = a : oe && n[oe] || (oe = a), i = t.length ? '<div class="nl-vibe-grid">' + t.map(function(e) {
-            var t = e.thumb ? '<img class="nl-vibe-card-thumb" src="' + e.thumb + '">' : '<div class="nl-vibe-card-thumb empty">&#127912;</div>',
+            var t = e.thumb ? '<img class="nl-vibe-card-thumb" draggable="false" oncontextmenu="return false" src="' + e.thumb + '">' : '<div class="nl-vibe-card-thumb empty">&#127912;</div>',
                 n = k(e.presetName),
                 r = k(e.vibeDataId || "");
-            return '<div class="nl-vibe-card" data-preset="' + n + '" data-vid="' + r + '">' + t + '<div class="nl-vibe-card-name">' + k(e.name || "未命名") + '</div><div class="nl-vibe-card-acts"><span class="nl-vibe-add" data-vid="' + r + '" title="加入当前组">＋</span><span class="nl-vibe-del" data-preset="' + n + '" title="删除">✕</span></div></div>'
+            return '<div oncontextmenu="return false" class="nl-vibe-card" data-preset="' + n + '" data-vid="' + r + '">' + t + '<div class="nl-vibe-card-name">' + k(e.name || "未命名") + '</div><div class="nl-vibe-card-acts"><span class="nl-vibe-add" data-vid="' + r + '" title="加入当前组">＋</span><span class="nl-vibe-del" data-preset="' + n + '" title="删除">✕</span></div></div>'
         }).join("") + "</div>" : '<div class="nl-empty" style="padding:18px;">还没有 Vibe，可先在智绘姬中导入后同步显示</div>';
         var o, l = Object.keys(n).sort(function(e, t) {
                 return "默认组" === e ? -1 : "默认组" === t ? 1 : e.localeCompare(t, "zh-CN")
@@ -2693,15 +3218,11 @@
                         return t.vibeDataId === e.vibeDataId
                     })[0],
                     a = r ? r.name : "（未知）" + (e.vibeDataId || "").slice(0, 8),
-                    i = r && r.thumb ? '<img class="nl-vibe-slot-thumb" src="' + r.thumb + '">' : '<div class="nl-vibe-slot-thumb empty">&#127912;</div>',
+                    i = r && r.thumb ? '<img class="nl-vibe-slot-thumb" draggable="false" oncontextmenu="return false" src="' + r.thumb + '">' : '<div class="nl-vibe-slot-thumb empty">&#127912;</div>',
                     o = "number" == typeof e.strength ? e.strength : .6;
                 return '<div class="nl-vibe-slot" data-slot="' + n + '">' + i + '<div class="nl-vibe-slot-body"><div class="nl-vibe-slot-name">' + k(a) + '</div><label class="nl-vibe-row"><span>强度 <b class="nl-slot-strv">' + o.toFixed(2) + '</b></span><input type="range" class="nl-slot-strength" data-slot="' + n + '" min="0" max="1" step="0.01" value="' + o + '"></label></div><span class="nl-vibe-slot-del" data-slot="' + n + '" title="移出组">✕</span></div>'
-            }).join("") : '<div class="nl-empty" style="padding:14px;">该组为空，去上方列表点「＋组」添加 Vibe（可叠加多个）</div>', e.innerHTML = '<details class="nl-vibe-listfold"' + (_vlf ? ' open' : '') + '><summary class="nl-vibe-sec-title" style="cursor:pointer;">Vibe 列表</summary>' + i + '</details><div class="nl-vibe-sec-title" style="margin-top:18px;">Vibe 叠加组</div><div class="nl-vibe-grouprow"><select class="nl-input" id="nl-vibe-groupsel" style="flex:1;">' + l + '</select><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-newgroup">新建组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-renamegroup">重命名</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-delgroup">删组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-savegroup">保存</button></div><div class="nl-vibe-slots">' + o + "</div>",
+            }).join("") : '<div class="nl-empty" style="padding:14px;">该组为空，去上方列表点「＋组」添加 Vibe（可叠加多个）</div>', e.innerHTML = '<div class="nl-vibe-sec-title">Vibe 列表</div><div class="nl-vibe-listwrap">' + i + '</div><div class="nl-vibe-sec-title" style="margin-top:18px;">Vibe 叠加组</div><div class="nl-vibe-grouprow"><select class="nl-input" id="nl-vibe-groupsel" style="flex:1;">' + l + '</select><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-newgroup">新建组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-renamegroup">重命名</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-delgroup">删组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-savegroup">保存</button></div><div class="nl-vibe-slots">' + o + "</div>",
             function(e) {
-                var _lf = e.querySelector(".nl-vibe-listfold");
-                _lf && _lf.addEventListener("toggle", function() {
-                    _vlf = _lf.open
-                });
                 e.querySelectorAll(".nl-vibe-add").forEach(function(e) {
                     e.addEventListener("click", function() {
                         var t = e.getAttribute("data-vid"),
@@ -2835,8 +3356,10 @@
             t.appendChild(r)
         } catch (e) {}
     }
-    setInterval(ce, 2e3), setTimeout(ce, 500);
+    setInterval(ce, 2e3), setTimeout(ce, 500), setTimeout(nlRefreshFloatingBall, 800), setTimeout(nlRefreshFloatingBall, 2200);
     /* 启动时执行旧数据迁移 */
     setTimeout(function() { _migrateOldData().catch(function(e) { console.log("[NAI] 迁移旧数据失败:", e); }); }, 1000);
+    /* 首次无参数组时自动建「默认」组 */
+    setTimeout(function() { try { nlEnsureDefaultParamGroup(); } catch (e) {} }, 3000);
 setTimeout(function() { _syncVibeImageMirror().catch(function(e) { console.log("[NAI] 同步 Vibe 数据失败:", e); }); }, 1800);
 }();
