@@ -3,7 +3,7 @@
    弹窗内检查是否最新、显示更新内容、可选更新。不会自动检测。 */
 (function() {
     "use strict";
-    var LOCAL_VERSION = "1.4.3";
+    var LOCAL_VERSION = "1.4.4";
     var EXT_NAME = "/nai-preset-switcher"; // 扩展文件夹名，服务端会补全为 third-party/<name>
     var PANEL_ID = "nai-lib-panel-v2";
     var BAR_ID = "nai-update-bar";
@@ -1093,6 +1093,60 @@
         }
     }
 
+    function nlNormalizePresetContent(e) {
+        return (e || "").replace(/\r\n?/g, "\n").trim()
+    }
+
+    function nlFindDuplicatePresetContent(e, t, n) {
+        if (!t) return null;
+        var r = nlNormalizePresetContent(t.positive),
+            a = nlNormalizePresetContent(t.negative);
+        if (!r && !a) return null;
+        for (var i = 0; i < (e || []).length; i++) {
+            var o = e[i];
+            if (!o || n && o.id === n) continue;
+            if (nlNormalizePresetContent(o.positive) === r && nlNormalizePresetContent(o.negative) === a) return o
+        }
+        return null
+    }
+
+    async function oeGetActivePresetRecord() {
+        try {
+            var t = W(),
+                n = t && (t.yusheid_novelai || "").trim();
+            if (!n) return null;
+            return (await I.all()).filter(function(e) {
+                return (e.name || "").trim() === n
+            })[0] || null
+        } catch (e) {
+            return null
+        }
+    }
+
+    function oeSyncGroupToActivePreset(e) {
+        (async function() {
+            try {
+                var t = await oeGetActivePresetRecord();
+                t && (t.vibeGroup = e, t.vibeStrengths = {}, await I.put(t), oeRefreshDetailVibeViews(e))
+            } catch (e) {}
+        })()
+    }
+
+    function oeToggleVibeFromLib(e) {
+        oeSyncEnabled(e);
+        (async function() {
+            try {
+                var t = await oeGetActivePresetRecord();
+                t && (t.vibeEnabled = e, e && !t.vibeGroup && (t.vibeGroup = oe), await I.put(t));
+                var n = s.getElementById(r),
+                    a = n && n.querySelector("#nl-dvibe-enable");
+                a && a.checked !== e && (a.checked = e, a.dispatchEvent(new Event("change", {
+                    bubbles: !0
+                })))
+            } catch (e) {}
+        })()
+    }
+
     function nlGetChatuNaiParams() {
         var e = window.parent && window.parent.document || s,
             t = {};
@@ -1905,7 +1959,22 @@
                 n = _allrecs.find(e => (e.name || "").trim() === t) || null
             } catch (e) {}
             if (n && !confirm("已存在名为「" + t + "」的预设，继续保存将覆盖它，是否继续？")) return;
-            const vibeBinding = getCurrentVibeBinding(),
+            const positivePrompt = e.querySelector("#nl-pos").value || "",
+                negativePrompt = e.querySelector("#nl-neg").value || "",
+                duplicatePreset = nlFindDuplicatePresetContent(_allrecs, {
+                    positive: positivePrompt,
+                    negative: negativePrompt
+                }, n && n.id);
+            if (duplicatePreset && !confirm("已存在内容相同的预设「" + (duplicatePreset.name || "未命名") + "」，仍要继续保存吗？")) return;
+            const vibeBinding = n ? {
+                    vibeEnabled: !!n.vibeEnabled,
+                    vibeGroup: n.vibeGroup || "默认组",
+                    vibeStrengths: n.vibeStrengths || {}
+                } : {
+                    vibeEnabled: !1,
+                    vibeGroup: "默认组",
+                    vibeStrengths: {}
+                },
                 _setpc = e.querySelector("#nl-settings-nai-params"),
                 naiParams = _setpc ? nlReadParamFieldInputs(_setpc, "nl-set-pf-") : nlGetSettingsNaiParams(e),
                 _activeParamGroup = nlGetActiveParamGroup(),
@@ -1913,8 +1982,8 @@
                     id: n ? n.id : S(),
                     name: t,
                     category: d.slice(),
-                    positive: e.querySelector("#nl-pos").value || "",
-                    negative: e.querySelector("#nl-neg").value || "",
+                    positive: positivePrompt,
+                    negative: negativePrompt,
                     source: c && c.source || "",
                     thumb: c && c.thumb || n && n.thumb || "",
                     createdAt: n && n.createdAt || Date.now(),
@@ -1970,7 +2039,8 @@
     var J = !1;
     async function R() {
         const e = s.getElementById(r),
-            t = e.querySelector('.nl-body[data-view="lib"]');
+            t = e && e.querySelector('.nl-body[data-view="lib"]');
+        if (!t) return;
         await async function() {
             if (!J) {
                 J = !0;
@@ -2066,16 +2136,33 @@
         });
         const d = "__all__" === p ? n : n.filter(e => h(e).includes(p)),
             $ = u.trim().toLowerCase(),
-            L = $ ? d.filter(e => (e.name || "").toLowerCase().includes($)) : d,
+            L = $ ? d.map((e, t) => {
+                var n = (e.name || "").toLowerCase().includes($),
+                    r = !n && ((e.positive || "").toLowerCase().includes($) || (e.negative || "").toLowerCase().includes($));
+                return n || r ? {
+                    item: e,
+                    rank: n ? 0 : 1,
+                    index: t
+                } : null
+            }).filter(Boolean).sort((e, t) => e.rank - t.rank || e.index - t.index).map(e => e.item) : d,
             j = c.map(e => {
                 const t = "__all__" === e ? "全部" : e;
                 return `<span class="nl-chip${e===p?" active":""}" data-fcat="${k(e)}">${k(t)}</span>`
             }).join("") + '<span class="nl-chip" id="nl-addcat-chip" data-fcat="__addnew__" style="font-size:14px;cursor:pointer;">+</span>';
         let q;
-        q = L.length ? `<div class="nl-grid${"list"===v?" list-mode":""}">` + L.map(e => {
+        q = d.length ? `<div class="nl-grid${"list"===v?" list-mode":""}" id="nl-results">` + d.map(e => {
             const t = e.thumb ? `<img class="nl-thumb" draggable="false" oncontextmenu="return false" src="${e.thumb}" decoding="async" loading="lazy">` : '<div class="nl-thumb empty">&#128247;</div>';
             return `<div oncontextmenu="return false" class="nl-card${e.name===a?" is-current":""}${b&&g.has(e.id)?" selected":""}" data-id="${e.id}">${t}<div class="nl-cardinfo"><div class="nl-cardname">${k(e.name||"未命名")}</div><div class="nl-tags">${h(e).map(e=>`<span class="nl-tag">${k(e)}</span>`).join("")}</div></div>\n</div>`
-        }).join("") + "</div>" : '<div class="nl-empty">还没有收藏，去"导入预设"标签添加吧</div>', t.innerHTML = `\n<div style="margin-bottom:10px;"><div class="nl-chips" id="nl-filter">${j}</div>\n</div>\n<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;"><div class="nl-search-wrap"><input type="text" class="nl-search" id="nl-search-input" placeholder="搜索预设名称..." value="${k(u)}"></div><span class="nl-viewtoggle" id="nl-viewtoggle" title="${"grid"===v?"列表视图":"网格视图"}">${"grid"===v?"☰":"☷"}</span><span class="nl-viewtoggle" id="nl-randpick" title="随机抽取">⚄</span><span class="nl-viewtoggle" id="nl-multisel-btn" title="多选" style="${b?"background:var(--nl-accent);color:#fff;border-color:var(--nl-accent);":""}">${b?"✕":"☑"}</span>\n</div>\n${b?'<div class="nl-multibar" id="nl-multibar"><span style="font-size:13px;color:#566472;" id="nl-selcount">已选 0 项</span><button class="nl-btn ghost" id="nl-sel-all" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">全选</button><button class="nl-btn ghost" id="nl-sel-tag" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">改标签</button><button class="nl-btn ghost" id="nl-sel-auto" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">自动分类</button><button class="nl-btn danger" id="nl-sel-del" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">删除</button></div>':""}\n${q}`, t.querySelectorAll(".nl-chip[data-fcat]").forEach(e => {
+        }).join("") + '</div><div class="nl-empty" id="nl-search-empty" style="display:none;">没有匹配的预设</div>' : '<div class="nl-empty">还没有收藏，去"导入预设"标签添加吧</div>', t.innerHTML = `
+<div style="margin-bottom:10px;"><div class="nl-chips" id="nl-filter">${j}</div>
+</div>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;"><div class="nl-search-wrap"><input type="text" class="nl-search" id="nl-search-input" placeholder="搜索名称或提示词..." value="${k(u)}"></div><span class="nl-viewtoggle" id="nl-viewtoggle" title="${"grid"===v?"列表视图":"网格视图"}">${"grid"===v?"☰":"☷"}</span><span class="nl-viewtoggle" id="nl-randpick" title="随机抽取">⚄</span><span class="nl-viewtoggle" id="nl-multisel-btn" title="多选" style="${b?"background:var(--nl-accent);color:#fff;border-color:var(--nl-accent);":""}">${b?"✕":"☑"}</span>
+</div>
+${b?'<div class="nl-multibar" id="nl-multibar"><span style="font-size:13px;color:#566472;" id="nl-selcount">已选 0 项</span><button class="nl-btn ghost" id="nl-sel-all" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">全选</button><button class="nl-btn ghost" id="nl-sel-tag" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">改标签</button><button class="nl-btn ghost" id="nl-sel-auto" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">自动分类</button><button class="nl-btn danger" id="nl-sel-del" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">删除</button></div>':""}
+${q}`;
+        t._nlAllResults = d;
+        t._nlCurrentResults = L;
+        t.querySelectorAll(".nl-chip[data-fcat]").forEach(e => {
             e.addEventListener("click", () => {
                 const t = e.getAttribute("data-fcat");
                 if ("__addnew__" === t) {
@@ -2207,10 +2294,30 @@
         });
         const A = t.querySelector("#nl-search-input");
         A && A.addEventListener("input", e => {
-            u = e.target.value, R();
-            var t = document.getElementById("nl-search-input");
-            t && (t.focus(), t.selectionStart = t.selectionEnd = t.value.length)
-        }), t.querySelectorAll(".nl-card").forEach(e => {
+            u = e.target.value;
+            var n = u.trim().toLowerCase(),
+                r = t.querySelector("#nl-results"),
+                a = t.querySelector("#nl-search-empty"),
+                i = new Map;
+            t.querySelectorAll(".nl-card").forEach(e => i.set(e.getAttribute("data-id"), e));
+            var o = n ? d.map((e, t) => {
+                var r = (e.name || "").toLowerCase().includes(n),
+                    a = !r && ((e.positive || "").toLowerCase().includes(n) || (e.negative || "").toLowerCase().includes(n));
+                return r || a ? {
+                    item: e,
+                    rank: r ? 0 : 1,
+                    index: t
+                } : null
+            }).filter(Boolean).sort((e, t) => e.rank - t.rank || e.index - t.index).map(e => e.item) : d;
+            t._nlCurrentResults = o;
+            r && (o.forEach(e => {
+                var t = i.get(e.id);
+                t && (t.style.display = "", r.appendChild(t))
+            }), i.forEach((e, t) => {
+                o.some(e => e.id === t) || (e.style.display = "none")
+            }));
+            a && (a.style.display = d.length && !o.length ? "" : "none")
+        }), $ && A && A.dispatchEvent(new Event("input")), t.querySelectorAll(".nl-card").forEach(e => {
             e.addEventListener("click", () => {
                 const n = e.getAttribute("data-id");
                 if (t._nlDragSuppress) return;
@@ -2427,8 +2534,10 @@
             }), b) {
             var z = t.querySelector("#nl-sel-all");
             z && z.addEventListener("click", () => {
-                L.forEach(e => g.add(e.id));
-                t.querySelectorAll(".nl-card").forEach(e => e.classList.add("selected"));
+                var e = t._nlCurrentResults || L,
+                    n = new Set(e.map(e => e.id));
+                e.forEach(e => g.add(e.id));
+                t.querySelectorAll(".nl-card").forEach(e => n.has(e.getAttribute("data-id")) && e.classList.add("selected"));
                 var r = t.querySelector("#nl-selcount");
                 r && (r.textContent = "已选 " + g.size + " 项")
             });
@@ -2705,7 +2814,7 @@
         }
         var y = null;
         v && v.addEventListener("change", async function() {
-                n.vibeEnabled = v.checked, b && (b.disabled = !n.vibeEnabled), n.vibeEnabled && !n.vibeGroup && b && b.value && (n.vibeGroup = b.value), await I.put(n), oeSyncEnabled(n.vibeEnabled), n.vibeEnabled && n.vibeGroup && ie(n.vibeGroup), m()
+                n.vibeEnabled = v.checked, b && (b.disabled = !n.vibeEnabled), n.vibeEnabled && !n.vibeGroup && b && b.value && (n.vibeGroup = b.value), await I.put(n), oeSyncEnabled(n.vibeEnabled), n.vibeEnabled && n.vibeGroup && ie(n.vibeGroup), m(), function() { try { var lt = s.getElementById(r), lv = lt && lt.querySelector("#nl-vibe-enable"), lg = lt && lt.querySelector("#nl-vibe-groupsel"); lv && (lv.checked = n.vibeEnabled), lg && (lg.disabled = !n.vibeEnabled) } catch (e) {} }()
             }), b && b.addEventListener("change", async function() {
                 n.vibeGroup = b.value, n.vibeStrengths = {}, await I.put(n), n.vibeEnabled && (oeSyncEnabled(!0), ie(n.vibeGroup)), m()
             }),
@@ -3221,7 +3330,7 @@
                     i = r && r.thumb ? '<img class="nl-vibe-slot-thumb" draggable="false" oncontextmenu="return false" src="' + r.thumb + '">' : '<div class="nl-vibe-slot-thumb empty">&#127912;</div>',
                     o = "number" == typeof e.strength ? e.strength : .6;
                 return '<div class="nl-vibe-slot" data-slot="' + n + '">' + i + '<div class="nl-vibe-slot-body"><div class="nl-vibe-slot-name">' + k(a) + '</div><label class="nl-vibe-row"><span>强度 <b class="nl-slot-strv">' + o.toFixed(2) + '</b></span><input type="range" class="nl-slot-strength" data-slot="' + n + '" min="0" max="1" step="0.01" value="' + o + '"></label></div><span class="nl-vibe-slot-del" data-slot="' + n + '" title="移出组">✕</span></div>'
-            }).join("") : '<div class="nl-empty" style="padding:14px;">该组为空，去上方列表点「＋组」添加 Vibe（可叠加多个）</div>', e.innerHTML = '<div class="nl-vibe-sec-title">Vibe 列表</div><div class="nl-vibe-listwrap">' + i + '</div><div class="nl-vibe-sec-title" style="margin-top:18px;">Vibe 叠加组</div><div class="nl-vibe-grouprow"><select class="nl-input" id="nl-vibe-groupsel" style="flex:1;">' + l + '</select><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-newgroup">新建组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-renamegroup">重命名</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-delgroup">删组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-savegroup">保存</button></div><div class="nl-vibe-slots">' + o + "</div>",
+            }).join("") : '<div class="nl-empty" style="padding:14px;">该组为空，去上方列表点「＋组」添加 Vibe（可叠加多个）</div>', e.innerHTML = '<div class="nl-vibe-sec-title">Vibe 列表</div><div class="nl-vibe-listwrap">' + i + '</div><div class="nl-vibe-sec-title" style="margin-top:18px;">Vibe 叠加组</div><div class="nl-vibe-grouprow"><select class="nl-input" id="nl-vibe-groupsel"' + (W() && "true" === W().enableVibeGroupTransfer ? "" : " disabled") + ' style="flex:1;">' + l + '</select><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-newgroup">新建组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-renamegroup">重命名</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-delgroup">删组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-savegroup">保存</button><label class="nl-vibe-toggle" style="display:inline-flex;align-items:center;white-space:nowrap;margin:0 0 0 auto;font-size:13px;color:#566472;cursor:pointer;"><input type="checkbox" id="nl-vibe-enable"' + (W() && "true" === W().enableVibeGroupTransfer ? " checked" : "") + '> 启用</label></div><div class="nl-vibe-slots">' + o + "</div>",
             function(e) {
                 e.querySelectorAll(".nl-vibe-add").forEach(function(e) {
                     e.addEventListener("click", function() {
@@ -3268,7 +3377,11 @@
                 });
                 var i = e.querySelector("#nl-vibe-groupsel");
                 i && i.addEventListener("change", function() {
-                    nlConfirmVibePending() ? (oeSetCurrentGroup(i.value), le()) : i.value = oe
+                    nlConfirmVibePending() ? (oeSetCurrentGroup(i.value), oeSyncGroupToActivePreset(i.value), le()) : i.value = oe
+                });
+                var ve = e.querySelector("#nl-vibe-enable");
+                ve && ve.addEventListener("change", function() {
+                    i && (i.disabled = !ve.checked), oeToggleVibeFromLib(ve.checked)
                 });
                 var o = e.querySelector("#nl-vibe-newgroup");
                 o && o.addEventListener("click", function() {
