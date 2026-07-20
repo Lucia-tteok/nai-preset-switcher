@@ -1291,7 +1291,7 @@
             return !1
         }(e);
         applyPresetVibeBinding(n), async function() {
-            t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), nlRefreshFloatingBall(), R()
+            t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), nlRefreshFloatingBall(), R(!1)
         }()
     }
 
@@ -2067,11 +2067,11 @@
         }
     }
     var J = !1;
-    async function R() {
+    async function R(nlSync) {
         const e = s.getElementById(r),
             t = e && e.querySelector('.nl-body[data-view="lib"]');
         if (!t) return;
-        await async function() {
+        if (!1 !== nlSync) await async function() {
             if (!J) {
                 J = !0;
                 try {
@@ -2197,14 +2197,14 @@ ${q}`;
                 const t = e.getAttribute("data-fcat");
                 if ("__addnew__" === t) {
                     const e = prompt("输入新的标签名称：");
-                    return void(e && x(e) && (E("已添加标签：" + e.trim(), "success"), R()))
+                    return void(e && x(e) && (E("已添加标签：" + e.trim(), "success"), R(!1)))
                 }
-                p = t, R()
+                p = t, R(!1)
             })
         });
         var _ = t.querySelector("#nl-viewtoggle");
         _ && _.addEventListener("click", () => {
-            v = "grid" === v ? "list" : "grid", R()
+            v = "grid" === v ? "list" : "grid", R(!1)
         });
         var RB = t.querySelector('#nl-randpick');
         RB && RB.addEventListener('click', function() {
@@ -2313,7 +2313,7 @@ ${q}`;
                     var e = picks[sel];
                     mask.remove();
                     applyPresetEntry(e);
-                    setTimeout(R, 300);
+                    setTimeout(() => R(!1), 300);
                 });
             }
             mask.addEventListener('click', function(ev) {
@@ -2477,7 +2477,7 @@ ${q}`;
                             }
                         }
                     } catch (e) {}
-                    R();
+                    R(!1);
                 })();
             }
             cont.querySelectorAll(".nl-card").forEach(function(card) {
@@ -2560,7 +2560,7 @@ ${q}`;
         })();
         var D = t.querySelector("#nl-multisel-btn");
         if (D && D.addEventListener("click", () => {
-                b = !b, g.clear(), R()
+                b = !b, g.clear(), R(!1)
             }), b) {
             var z = t.querySelector("#nl-sel-all");
             z && z.addEventListener("click", () => {
@@ -2589,7 +2589,7 @@ ${q}`;
                         }
                     } catch (e) {}
                 }
-                E("已自动分类 " + cnt + " 个预设", "success"), R()
+                E("已自动分类 " + cnt + " 个预设", "success"), R(!1)
             });
             var P = t.querySelector("#nl-sel-del");
             P && P.addEventListener("click", async () => {
@@ -2622,7 +2622,7 @@ ${q}`;
                                 i && i(a).trigger("change")
                             }
                         } catch (e) {}
-                        g.clear(), b = !1, E("已删除", "success"), R()
+                        g.clear(), b = !1, E("已删除", "success"), R(!1)
                     }
                 } else E("请先选择预设", "warning")
             });
@@ -2668,7 +2668,7 @@ ${q}`;
                                 }
                                 await I.put(t)
                             } catch (e) {}
-                            a.remove(), g.clear(), b = !1, E("replace" === n ? "已覆盖标签" : "已新增标签", "success"), R()
+                            a.remove(), g.clear(), b = !1, E("replace" === n ? "已覆盖标签" : "已新增标签", "success"), R(!1)
                         } else E("请至少选择一个标签", "warning")
                     })
                 }
@@ -2727,7 +2727,7 @@ ${q}`;
                         i && (i.value = e, i.textContent = e)
                     }
                 } catch (e) {}
-                E("名称已更新", "success"), R()
+                E("名称已更新", "success"), R(!1)
             }
         });
         const l = i.querySelector("#nl-detail-tags");
@@ -2755,8 +2755,9 @@ ${q}`;
             }), a.querySelector("#nl-tagcancel").addEventListener("click", () => a.remove()), a.querySelector("#nl-tagok").addEventListener("click", async () => {
                 const r = Array.from(n).filter(e => e);
                 e.category = r.length ? r : ["未分类"], await I.put(e), E("标签已更新", "success"), a.remove();
-                var i = t.querySelector("#nl-detail-tags");
-                i && (i.innerHTML = h(e).map(e => `<span class="nl-tag">${k(e)}</span>`).join("") || '<span class="nl-placeholder">点击选择标签</span>'), R()
+                var i = t.querySelector("#nl-detail-tags"),
+                    o = h(e);
+                i && (i.innerHTML = o.map(e => `<span class="nl-tag">${k(e)}</span>`).join("") || '<span class="nl-placeholder">点击选择标签</span>'), "__all__" !== p && !o.includes(p) && (p = "__all__"), R(!1)
             })
         }(n, i));
         const c = i.querySelector("#nl-dpos"),
@@ -2895,7 +2896,7 @@ ${q}`;
                     return !1
                 }(e);
             applyPresetVibeBinding(n), async function() {
-                t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), nlRefreshFloatingBall(), R()
+                t ? E("已设为当前预设「" + e + "」", "success") : E("已写入预设，请在智绘姬面板确认", "info"), nlRefreshFloatingBall(), R(!1)
             }()
         });
         (function(){
@@ -2957,7 +2958,7 @@ ${q}`;
             });
             $.addEventListener("dblclick", function(e) {
                 e.stopPropagation(), e.preventDefault(), $._nlDThumbClickT && (clearTimeout($._nlDThumbClickT), $._nlDThumbClickT = null), nlChangePresetThumb(n, i, function() {
-                    nlRefreshFloatingBall(), R(), Q(n.id)
+                    nlRefreshFloatingBall(), R(!1), Q(n.id)
                 })
             })
         }
@@ -2977,7 +2978,7 @@ ${q}`;
                         o && o(r).trigger("change")
                     }
                 } catch (e) {}
-                E("已删除", "success"), i.remove(), R()
+                E("已删除", "success"), i.remove(), R(!1)
             }
         })
     }
