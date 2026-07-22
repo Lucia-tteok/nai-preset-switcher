@@ -3318,7 +3318,8 @@ ${q}`;
         return confirm("当前 Vibe 叠加组设置未保存，是否保存？") && nlSaveVibePending(), nlVibePending = {}, !0
     }
     var oe = null,
-        _vlf = !1;
+        _vlf = !1,
+        nlVibeSearch = "";
 
     function le() {
         const e = s.getElementById(r).querySelector('.nl-body[data-view="vibe"]');
@@ -3343,7 +3344,7 @@ ${q}`;
             var t = e.thumb ? '<img class="nl-vibe-card-thumb" draggable="false" oncontextmenu="return false" src="' + e.thumb + '">' : '<div class="nl-vibe-card-thumb empty">&#127912;</div>',
                 n = k(e.presetName),
                 r = k(e.vibeDataId || "");
-            return '<div oncontextmenu="return false" class="nl-vibe-card" data-preset="' + n + '" data-vid="' + r + '">' + t + '<div class="nl-vibe-card-name">' + k(e.name || "未命名") + '</div><div class="nl-vibe-card-acts"><span class="nl-vibe-add" data-vid="' + r + '" title="加入当前组">＋</span><span class="nl-vibe-del" data-preset="' + n + '" title="删除">✕</span></div></div>'
+            return '<div oncontextmenu="return false" class="nl-vibe-card" data-preset="' + n + '" data-vid="' + r + '" data-name="' + k((e.name || "").toLowerCase()) + '">' + t + '<div class="nl-vibe-card-name">' + k(e.name || "未命名") + '</div><div class="nl-vibe-card-acts"><span class="nl-vibe-add" data-vid="' + r + '" title="加入当前组">＋</span><span class="nl-vibe-del" data-preset="' + n + '" title="删除">✕</span></div></div>'
         }).join("") + "</div>" : '<div class="nl-empty" style="padding:18px;">还没有 Vibe，可先在智绘姬中导入后同步显示</div>';
         var o, l = Object.keys(n).sort(function(e, t) {
                 return "默认组" === e ? -1 : "默认组" === t ? 1 : e.localeCompare(t, "zh-CN")
@@ -3363,7 +3364,29 @@ ${q}`;
                 return '<div class="nl-vibe-slot" data-slot="' + n + '">' + i + '<div class="nl-vibe-slot-body"><div class="nl-vibe-slot-name">' + k(a) + '</div><label class="nl-vibe-row"><span>强度 <b class="nl-slot-strv">' + o.toFixed(2) + '</b></span><input type="range" class="nl-slot-strength" data-slot="' + n + '" min="0" max="1" step="0.01" value="' + o + '"></label></div><span class="nl-vibe-slot-del" data-slot="' + n + '" title="移出组">✕</span></div>'
             }).join("") : '<div class="nl-empty" style="padding:14px;">该组为空，去上方列表点「＋组」添加 Vibe（可叠加多个）</div>', e.innerHTML = '<div class="nl-vibe-sec-title">Vibe 列表</div><div class="nl-vibe-listwrap">' + i + '</div><div class="nl-vibe-sec-title" style="margin-top:18px;">Vibe 叠加组</div><div class="nl-vibe-grouprow"><select class="nl-input" id="nl-vibe-groupsel"' + (W() && "true" === W().enableVibeGroupTransfer ? "" : " disabled") + ' style="flex:1;">' + l + '</select><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-newgroup">新建组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-renamegroup">重命名</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-delgroup">删组</button><button class="nl-btn ghost nl-vibe-groupbtn" id="nl-vibe-savegroup">保存</button><label class="nl-vibe-toggle" style="display:inline-flex;align-items:center;white-space:nowrap;margin:0 0 0 auto;font-size:13px;color:#566472;cursor:pointer;"><input type="checkbox" id="nl-vibe-enable"' + (W() && "true" === W().enableVibeGroupTransfer ? " checked" : "") + '> 启用</label></div><div class="nl-vibe-slots">' + o + "</div>",
             function(e) {
-                e.querySelectorAll(".nl-vibe-add").forEach(function(e) {
+                var vibeView = e,
+                    vibeTitle = e.querySelector(".nl-vibe-sec-title"),
+                    vibeList = e.querySelector(".nl-vibe-listwrap"),
+                    vibeSearchWrap = document.createElement("div"),
+                    vibeSearch = document.createElement("input"),
+                    vibeSearchEmpty = document.createElement("div");
+                vibeSearchWrap.className = "nl-search-wrap", vibeSearchWrap.style.marginBottom = "8px", vibeSearch.type = "text", vibeSearch.className = "nl-search", vibeSearch.id = "nl-vibe-search", vibeSearch.placeholder = "搜索 Vibe...", vibeSearch.value = nlVibeSearch, vibeSearchWrap.appendChild(vibeSearch), vibeTitle && vibeTitle.parentNode.insertBefore(vibeSearchWrap, vibeTitle), vibeSearchEmpty.id = "nl-vibe-search-empty", vibeSearchEmpty.className = "nl-empty", vibeSearchEmpty.style.cssText = "display:none;padding:10px;", vibeSearchEmpty.textContent = "没有匹配的 Vibe", vibeList && vibeList.appendChild(vibeSearchEmpty);
+                vibeTitle && vibeList && vibeTitle.parentNode.insertBefore(vibeSearchWrap, vibeList);
+                function filterVibes() {
+                    var t = (vibeSearch.value || "").trim().toLowerCase(),
+                        n = 0;
+                    nlVibeSearch = vibeSearch.value || "", e.querySelectorAll(".nl-vibe-card").forEach(function(e) {
+                        var r = !t || (e.getAttribute("data-name") || "").indexOf(t) >= 0;
+                        e.style.display = r ? "" : "none", r && n++
+                    }), vibeSearchEmpty.style.display = t && !n ? "" : "none"
+                }
+                function renderVibesKeepingScroll() {
+                    var t = vibeList ? vibeList.scrollTop : 0;
+                    le();
+                    var n = vibeView.querySelector(".nl-vibe-listwrap");
+                    n && (n.scrollTop = t)
+                }
+                vibeSearch.addEventListener("input", filterVibes), filterVibes(), e.querySelectorAll(".nl-vibe-add").forEach(function(e) {
                     e.addEventListener("click", function() {
                         var t = e.getAttribute("data-vid"),
                             n = re();
@@ -3374,7 +3397,7 @@ ${q}`;
                             }) ? E("该 Vibe 已在组中", "info") : r.vibes.length >= 4 ? E("单组最多 4 个 Vibe 叠加", "warning") : (r.vibes.push({
                                 vibeDataId: t,
                                 strength: .6
-                            }), r.updatedAt = Date.now(), X(), E("已加入组「" + oe + "」", "success"), le())
+                            }), r.updatedAt = Date.now(), X(), E("已加入组「" + oe + "」", "success"), renderVibesKeepingScroll())
                         }
                     })
                 }), e.querySelectorAll(".nl-vibe-del").forEach(function(e) {
