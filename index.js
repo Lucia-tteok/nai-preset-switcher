@@ -740,6 +740,9 @@
         t && (t.style.display = e ? "none" : "flex")
     }
 
+    var nlViewportHoldHeight = 0,
+        nlViewportHoldUntil = 0;
+
     function nlSyncViewportVars() {
         try {
             var de = s.documentElement;
@@ -747,9 +750,15 @@
             var vv = window.visualViewport;
             var h = (vv && vv.height) || window.innerHeight || de.clientHeight || 0;
             var w = (vv && vv.width) || window.innerWidth || de.clientWidth || 0;
+            if (nlViewportHoldHeight && Date.now() < nlViewportHoldUntil && h < nlViewportHoldHeight) h = nlViewportHoldHeight;
+            else if (Date.now() >= nlViewportHoldUntil) nlViewportHoldHeight = nlViewportHoldUntil = 0;
             if (h > 0) de.style.setProperty("--nl-app-h", h + "px");
             if (w > 0) de.style.setProperty("--nl-app-w", w + "px");
         } catch (_) {}
+    }
+
+    function nlHoldViewportAfterPrompt(e) {
+        e > 0 && (nlViewportHoldHeight = e, nlViewportHoldUntil = Date.now() + 700, nlSyncViewportVars(), setTimeout(nlSyncViewportVars, 720))
     }
 
     function nlBindViewportSync() {
@@ -2735,6 +2744,7 @@ ${q}`;
             f();
             const n = new Set(h(e)),
                 a = s.createElement("div");
+            a.style.zIndex = "10004";
 
             function i() {
                 return f().map(e => {
@@ -2752,13 +2762,15 @@ ${q}`;
             }), a.querySelector("#nl-tagadd").addEventListener("click", () => {
                 const e = prompt("输入新的标签名称：");
                 e && x(e) && (n.add(e.trim()), a.querySelector("#nl-taglist").innerHTML = i())
-            }), a.querySelector("#nl-tagcancel").addEventListener("click", () => a.remove()), a.querySelector("#nl-tagok").addEventListener("click", async () => {
+            }), a.querySelector("#nl-tagcancel").addEventListener("click", e => {
+                e.preventDefault(), e.stopPropagation(), a.remove()
+            }), a.querySelector("#nl-tagok").addEventListener("click", async () => {
                 const r = Array.from(n).filter(e => e);
                 e.category = r.length ? r : ["未分类"], await I.put(e), E("标签已更新", "success"), a.remove();
                 var i = t.querySelector("#nl-detail-tags"),
                     o = h(e);
                 i && (i.innerHTML = o.map(e => `<span class="nl-tag">${k(e)}</span>`).join("") || '<span class="nl-placeholder">点击选择标签</span>'), "__all__" !== p && !o.includes(p) && (p = "__all__"), R(!1)
-            })
+            }), t.appendChild(a)
         }(n, i));
         const c = i.querySelector("#nl-dpos"),
             d = i.querySelector("#nl-dneg");
@@ -3454,8 +3466,9 @@ ${q}`;
                 var l = e.querySelector("#nl-vibe-renamegroup");
                 l && l.addEventListener("click", async function() {
                     if ("默认组" !== oe) {
-                        var e = prompt("新的组名：", oe);
-                        null != e && ((e = e.trim()) ? e !== oe && (await oeRenameVibeGroup(oe, e) ? (E("已重命名组", "success"), le()) : E("重命名失败（可能重名）", "error")) : E("组名不能为空", "error"))
+                        var t = parseFloat(l.ownerDocument.documentElement.style.getPropertyValue("--nl-app-h")) || window.innerHeight || 0,
+                            e = prompt("新的组名：", oe);
+                        nlHoldViewportAfterPrompt(t), null != e && ((e = e.trim()) ? e !== oe && (await oeRenameVibeGroup(oe, e) ? (E("已重命名组", "success"), le()) : E("重命名失败（可能重名）", "error")) : E("组名不能为空", "error"))
                     } else E("默认组不可重命名", "warning")
                 });
                 var s = e.querySelector("#nl-vibe-delgroup");
