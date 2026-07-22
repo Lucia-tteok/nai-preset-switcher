@@ -747,9 +747,10 @@
         try {
             var de = s.documentElement;
             if (!de) return;
-            var vv = window.visualViewport;
-            var h = (vv && vv.height) || window.innerHeight || de.clientHeight || 0;
-            var w = (vv && vv.width) || window.innerWidth || de.clientWidth || 0;
+            var view = de.ownerDocument && de.ownerDocument.defaultView || window;
+            var vv = view.visualViewport;
+            var h = (vv && vv.height) || view.innerHeight || de.clientHeight || 0;
+            var w = (vv && vv.width) || view.innerWidth || de.clientWidth || 0;
             if (nlViewportHoldHeight && Date.now() < nlViewportHoldUntil && h < nlViewportHoldHeight) h = nlViewportHoldHeight;
             else if (Date.now() >= nlViewportHoldUntil) nlViewportHoldHeight = nlViewportHoldUntil = 0;
             if (h > 0) de.style.setProperty("--nl-app-h", h + "px");
@@ -759,6 +760,96 @@
 
     function nlHoldViewportAfterPrompt(e) {
         e > 0 && (nlViewportHoldHeight = e, nlViewportHoldUntil = Date.now() + 700, nlSyncViewportVars(), setTimeout(nlSyncViewportVars, 720))
+    }
+
+    function nlReleaseViewportAfterPrompt(e) {
+        nlViewportHoldHeight = nlViewportHoldUntil = 0;
+        try {
+            var d = e && e.ownerDocument || s,
+                root = d.documentElement,
+                panel = d.getElementById(r),
+                box = panel && panel.querySelector(".nl-box");
+            if (root) {
+                var view = root.ownerDocument && root.ownerDocument.defaultView || window;
+                root.style.setProperty("--nl-app-h", (view.innerHeight || root.clientHeight || 0) + "px");
+            }
+            if (box) {
+                box.style.transform = "translateZ(0)";
+                requestAnimationFrame(function() {
+                    box.style.transform = "";
+                    nlSyncViewportVars()
+                })
+            } else nlSyncViewportVars()
+        } catch (_) {
+            nlSyncViewportVars()
+        }
+    }
+
+    function nlOpenVibeRenameDialog(panel, current, done) {
+        if (!panel || !current) return;
+        var old = panel.querySelector(".nl-vibe-rename-modal");
+        old && old.remove();
+        var doc = panel.ownerDocument || s,
+            mask = doc.createElement("div"),
+            box = doc.createElement("div"),
+            title = doc.createElement("div"),
+            input = doc.createElement("input"),
+            actions = doc.createElement("div"),
+            cancel = doc.createElement("button"),
+            confirm = doc.createElement("button"),
+            closed = !1;
+        mask.className = "nl-vibe-rename-modal";
+        mask.style.cssText = "position:absolute;inset:0;z-index:10005;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(20,24,30,.42);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);";
+        box.style.cssText = "width:min(88vw,360px);box-sizing:border-box;padding:18px;background:var(--SmartThemeBlurTintColor,#fff);color:var(--SmartThemeBodyColor,#333);border:1px solid rgba(120,130,140,.22);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.24);";
+        title.textContent = "重命名 Vibe 组";
+        title.style.cssText = "font-weight:700;font-size:16px;margin-bottom:12px;";
+        input.type = "text";
+        input.value = current;
+        input.autocomplete = "off";
+        input.style.cssText = "width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid rgba(120,130,140,.35);border-radius:8px;background:transparent;color:inherit;font:inherit;outline:none;";
+        actions.style.cssText = "display:flex;justify-content:flex-end;gap:8px;margin-top:14px;";
+        cancel.type = confirm.type = "button";
+        cancel.textContent = "取消";
+        confirm.textContent = "确定";
+        cancel.style.cssText = "padding:8px 14px;border:1px solid rgba(120,130,140,.3);border-radius:8px;background:transparent;color:inherit;cursor:pointer;";
+        confirm.style.cssText = "padding:8px 14px;border:0;border-radius:8px;background:#596b7a;color:#fff;cursor:pointer;";
+        function close() {
+            if (closed) return !1;
+            closed = !0;
+            input.blur();
+            mask.remove();
+            nlReleaseViewportAfterPrompt(panel);
+            setTimeout(nlSyncViewportVars, 80);
+            setTimeout(nlSyncViewportVars, 240);
+            setTimeout(nlSyncViewportVars, 520);
+            return !0
+        }
+        cancel.addEventListener("click", close);
+        mask.addEventListener("click", function(ev) {
+            ev.target === mask && close()
+        });
+        input.addEventListener("keydown", function(ev) {
+            "Enter" === ev.key ? confirm.click() : "Escape" === ev.key && close()
+        });
+        confirm.addEventListener("click", function() {
+            var value = input.value.trim();
+            close();
+            if (value && value !== current) setTimeout(function() {
+                done(value)
+            }, 320);
+            else if (!value) E("组名不能为空", "error")
+        });
+        actions.appendChild(cancel);
+        actions.appendChild(confirm);
+        box.appendChild(title);
+        box.appendChild(input);
+        box.appendChild(actions);
+        mask.appendChild(box);
+        (panel.querySelector(".nl-box") || panel).appendChild(mask);
+        setTimeout(function() {
+            input.focus();
+            input.select()
+        }, 0)
     }
 
     function nlBindViewportSync() {
@@ -3464,12 +3555,12 @@ ${q}`;
                         } else E("组名不能为空", "error")
                 });
                 var l = e.querySelector("#nl-vibe-renamegroup");
-                l && l.addEventListener("click", async function() {
-                    if ("默认组" !== oe) {
-                        var t = parseFloat(l.ownerDocument.documentElement.style.getPropertyValue("--nl-app-h")) || window.innerHeight || 0,
-                            e = prompt("新的组名：", oe);
-                        nlHoldViewportAfterPrompt(t), null != e && ((e = e.trim()) ? e !== oe && (await oeRenameVibeGroup(oe, e) ? (E("已重命名组", "success"), le()) : E("重命名失败（可能重名）", "error")) : E("组名不能为空", "error"))
-                    } else E("默认组不可重命名", "warning")
+                l && l.addEventListener("click", function() {
+                    if ("默认组" === oe) return void E("默认组不可重命名", "warning");
+                    var oldGroupName = oe;
+                    nlOpenVibeRenameDialog(e, oldGroupName, async function(name) {
+                        await oeRenameVibeGroup(oldGroupName, name) ? (E("已重命名组", "success"), le()) : E("重命名失败（可能重名）", "error")
+                    })
                 });
                 var s = e.querySelector("#nl-vibe-delgroup");
                 s && s.addEventListener("click", function() {
