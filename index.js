@@ -3,7 +3,7 @@
    弹窗内检查是否最新、显示更新内容、可选更新。不会自动检测。 */
 (function() {
     "use strict";
-    var LOCAL_VERSION = "1.4.5";
+    var LOCAL_VERSION = "1.4.6";
     var EXT_NAME = "/nai-preset-switcher"; // 扩展文件夹名，服务端会补全为 third-party/<name>
     var PANEL_ID = "nai-lib-panel-v2";
     var BAR_ID = "nai-update-bar";
@@ -185,6 +185,27 @@
         return d;
     }
 
+    function renderChangelog(container, text) {
+        container.textContent = "";
+        var source = String(text || "");
+        var urlPattern = /(https?:\/\/[^\s<>]+)/g;
+        var cursor = 0;
+        var match;
+        while ((match = urlPattern.exec(source))) {
+            if (match.index > cursor) container.appendChild(D().createTextNode(source.slice(cursor, match.index)));
+            var link = D().createElement("a");
+            link.href = match[1].replace(/[。。，,）)]+$/, "");
+            link.textContent = link.href;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.style.color = "#72b7ff";
+            link.style.textDecoration = "underline";
+            container.appendChild(link);
+            cursor = match.index + match[1].length;
+        }
+        if (cursor < source.length) container.appendChild(D().createTextNode(source.slice(cursor)));
+    }
+
     function closeModal() {
         var m = D().getElementById(MODAL_ID);
         if (m && m.parentNode) m.parentNode.removeChild(m);
@@ -252,7 +273,7 @@
         // 显示更新日志
         if (info.changelog) {
             logWrap.style.display = "block";
-            logBox.textContent = info.changelog;
+            renderChangelog(logBox, info.changelog);
         }
 
         // 显示检查结果

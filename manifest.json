@@ -7,7 +7,7 @@
   "js": "index.js",
   "css": "",
   "author": "毫无疑问你就是我的天使",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "homePage": "https://github.com/Lucia-tteok/nai-preset-switcher",
-  "changelog": "v1.4.5\n更新内容：\n1. 优化移动端面板视口适配与预设详情页滚动体验。\n2. 新增 Vibe 搜索，并在列表刷新后保持原有滚动位置。\n3. 修复标签弹窗遮挡、标签更新异常及 Vibe 组重命名导致的半屏白屏问题。"
+  "changelog": "v1.4.6\n更新内容：\n1. 新增 NAI 5 相关适配，优化模型参数识别、数据处理与使用兼容性。\n2. 新增导出功能：支持将图片、提示词、Vibe 等内容打包为单个 ZIP 文件导出，并可导入到 VV 老师的网站中使用。\n   网站链接：https://glassgallery.space/\n3. 优化部分交互细节与稳定性，修复若干已知问题。"
 }
