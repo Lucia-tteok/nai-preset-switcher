@@ -481,7 +481,12 @@
         id: "novelaimode",
         label: "\u6a21\u578b",
         type: "select",
-        options: ["nai-diffusion-3", "nai-diffusion-4-full", "nai-diffusion-4-curated-preview", "nai-diffusion-4-5-curated", "nai-diffusion-4-5-full"]
+        options: ["nai-diffusion-5-full", "nai-diffusion-5-curated", "nai-diffusion-3", "nai-diffusion-4-full", "nai-diffusion-4-curated-preview", "nai-diffusion-4-5-curated", "nai-diffusion-4-5-full"]
+    }, {
+        id: "UCP_novelai",
+        label: "\u8d1f\u9762\u8d28\u91cf\u9884\u8bbe",
+        type: "select",
+        hostOptions: !0
     }, {
         id: "novelai_sampler",
         label: "\u91c7\u6837\u65b9\u6cd5",
@@ -522,10 +527,6 @@
         label: "\u79cd\u5b50 (seed)",
         type: "number"
     }, {
-        id: "AI_use_coords",
-        label: "AI \u9ed8\u8ba4\u89d2\u8272\u4f4d\u7f6e",
-        type: "checkbox"
-    }, {
         id: "sm",
         label: "SMEA",
         type: "checkbox"
@@ -540,6 +541,14 @@
     }, {
         id: "nai3Deceisp",
         label: "\u51cf\u5c11\u4f2a\u5f71 (Decrisp)",
+        type: "checkbox"
+    }, {
+        id: "novelai_straight_alpha",
+        label: "\u900f\u660e\u56fe\u7247 (straight_alpha)",
+        type: "checkbox"
+    }, {
+        id: "AI_use_coords",
+        label: "AI \u9ed8\u8ba4\u89d2\u8272\u4f4d\u7f6e",
         type: "checkbox"
     }];
 
@@ -667,14 +676,31 @@
         return groupName && nlGetParamGroups()[groupName] ? nlApplyParamGroup(groupName) : nlApplyChatuNaiParams(n)
     }
 
+    function nlGetParamFieldOptions(f, val) {
+        var options = f.options || [];
+        if (f.hostOptions) try {
+            var doc = window.parent && window.parent.document || s,
+                host = doc.getElementById(f.id);
+            host && host.options && host.options.length && (options = Array.from(host.options).map(function(o) {
+                return { v: o.value, t: o.textContent || o.label || o.value }
+            }))
+        } catch (e) {}
+        options = options.slice ? options.slice() : [];
+        var hasValue = options.some(function(o) {
+            return String(void 0 !== o.v ? o.v : o) === String(val)
+        });
+        return !hasValue && "" !== String(void 0 === val ? "" : val) && options.unshift({ v: val, t: val }), options
+    }
+
     function nlRenderParamFieldInputs(idPrefix, params) {
         params = params || {};
         return NAI_PARAM_FIELDS.map(function(f) {
             var val = f.id in params ? params[f.id] : "";
+            if ("novelai_seed" === f.id) return '<label style="font-size:12px;color:#566472;">' + k(f.label) + '<input type="number" class="nl-input" id="' + idPrefix + f.id + '" data-pf="' + k(f.id) + '" value="' + k(void 0 === val ? "" : val) + '" style="margin-top:4px;"></label><label style="font-size:12px;color:#566472;">&nbsp;<button type="button" class="nl-btn ghost" data-nl-export="1" title="一键导出" style="display:block;width:100%;margin-top:4px;padding:6px 11px!important;font-size:14px!important;line-height:1.2!important;">一键导出</button></label>';
             if ("select" === f.type) {
-                var optsHtml = f.options.map(function(o) {
+                var optsHtml = nlGetParamFieldOptions(f, val).map(function(o) {
                     var ov = void 0 !== o.v ? o.v : o,
-                        ot = void 0 !== o.t ? o.t : o;
+                    ot = void 0 !== o.t ? o.t : o;
                     return '<option value="' + k(ov) + '"' + (String(val) === String(ov) ? " selected" : "") + ">" + k(ot) + "</option>"
                 }).join("");
                 return '<label style="font-size:12px;color:#566472;">' + k(f.label) + '<select class="nl-input" id="' + idPrefix + f.id + '" data-pf="' + k(f.id) + '" style="margin-top:4px;">' + optsHtml + "</select></label>"
@@ -682,6 +708,20 @@
             if ("checkbox" === f.type) return '<label style="font-size:12px;color:#566472;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="' + idPrefix + f.id + '" data-pf="' + k(f.id) + '"' + (val ? " checked" : "") + "> " + k(f.label) + "</label>";
             return '<label style="font-size:12px;color:#566472;">' + k(f.label) + '<input type="number" class="nl-input" id="' + idPrefix + f.id + '" data-pf="' + k(f.id) + '" value="' + k(void 0 === val ? "" : val) + '" style="margin-top:4px;"></label>'
         }).join("")
+    }
+
+    function nlSyncExportButtonSize(container, idPrefix) {
+        if (!container) return;
+        var seed = container.querySelector("#" + idPrefix + "novelai_seed"),
+            btn = container.querySelector("[data-nl-export]");
+        if (!seed || !btn) return;
+        requestAnimationFrame(function() {
+            var height = Math.round(seed.getBoundingClientRect().height);
+            if (height > 0) {
+                btn.style.setProperty("height", height + "px", "important");
+                btn.style.setProperty("min-height", height + "px", "important")
+            }
+        })
     }
 
     function nlReadParamFieldInputs(container, idPrefix) {
@@ -1302,6 +1342,16 @@
         var e = window.parent && window.parent.document || s,
             t = {};
         [{
+            id: "novelaimode",
+            key: "naiModel"
+        }, {
+            id: "UCP_novelai",
+            key: "naiNegativeQualityPreset"
+        }, {
+            id: "novelai_straight_alpha",
+            key: "naiStraightAlpha",
+            type: "checkbox"
+        }, {
             id: "novelai_sampler",
             key: "naiSampler"
         }, {
@@ -1316,7 +1366,7 @@
         }].forEach(function(n) {
             try {
                 var r = e.getElementById(n.id);
-                r && (t[n.key] = r.value)
+                r && (t[n.key] = "checkbox" === n.type ? !!r.checked : r.value)
             } catch (e) {}
         });
         return t
@@ -1328,6 +1378,16 @@
             n = window.parent && (window.parent.jQuery || window.parent.$),
             r = !1;
         [{
+            id: "novelaimode",
+            key: "naiModel"
+        }, {
+            id: "UCP_novelai",
+            key: "naiNegativeQualityPreset"
+        }, {
+            id: "novelai_straight_alpha",
+            key: "naiStraightAlpha",
+            type: "checkbox"
+        }, {
             id: "novelai_sampler",
             key: "naiSampler"
         }, {
@@ -1343,11 +1403,14 @@
             try {
                 if (void 0 === e[a.key] || null === e[a.key]) return;
                 var i = t.getElementById(a.id);
-                i && (i.value = e[a.key], n ? n(i).val(e[a.key]).trigger("input").trigger("change") : (i.dispatchEvent(new Event("input", {
+                if (!i) return;
+                if ("checkbox" === a.type) i.checked = !!e[a.key], n ? n(i).prop("checked", !!e[a.key]).trigger("change") : i.dispatchEvent(new Event("change", { bubbles: !0 }));
+                else i.value = e[a.key], n ? n(i).val(e[a.key]).trigger("input").trigger("change") : (i.dispatchEvent(new Event("input", {
                     bubbles: !0
                 })), i.dispatchEvent(new Event("change", {
                     bubbles: !0
-                }))), r = !0)
+                })));
+                r = !0
             } catch (e) {}
         });
         return r
@@ -1360,6 +1423,9 @@
             return r ? r.value : n
         }
         return {
+            naiModel: t("#nl-set-nai-model", ""),
+            naiNegativeQualityPreset: t("#nl-set-nai-negative-quality", ""),
+            naiStraightAlpha: !!(e.querySelector("#nl-set-nai-straight-alpha") && e.querySelector("#nl-set-nai-straight-alpha").checked),
             naiSampler: t("#nl-set-nai-sampler", ""),
             naiSteps: t("#nl-set-nai-steps", ""),
             naiPromptGuidance: t("#nl-set-nai-guidance", ""),
@@ -1524,9 +1590,18 @@
         return e.replace(/[&<>"']/g, e => t[e])
     }
 
-    function E(t, n) {
+    function E(t, n, autoHideMs) {
         try {
-            if (window.toastr) return void(toastr[n] || toastr.info)(t)
+            if (window.toastr) {
+                var toast = (toastr[n] || toastr.info)(t);
+                if (autoHideMs > 0) setTimeout(function() {
+                    try {
+                        if (toast && toast.fadeOut) toast.fadeOut();
+                        else if (toast && toast.remove) toast.remove()
+                    } catch (e) {}
+                }, autoHideMs);
+                return toast
+            }
         } catch (e) {}
         console.log("[" + e + "] " + t)
     }
@@ -1641,6 +1716,287 @@
                 a.onsuccess = () => n(a.result), a.onerror = e => r(e.target.error)
             });
         return n || await _restoreVibeImage(e)
+    }
+
+    function nlExportTextImage(text) {
+        var canvas = s.createElement("canvas"),
+            ctx = canvas.getContext("2d"),
+            value = String(text || "未命名").trim() || "未命名";
+        if (!ctx || !canvas.toDataURL) throw new Error("当前环境不支持生成占位图片");
+        var maxWidth = 960,
+            lines = [],
+            current = "";
+        canvas.width = 1200, canvas.height = 800;
+        ctx.fillStyle = "#ffffff", ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#000000", ctx.textAlign = "center", ctx.textBaseline = "middle";
+        ctx.font = '600 56px sans-serif';
+        value.split(/\r?\n/).forEach(function(paragraph) {
+            Array.from(paragraph || " ").forEach(function(ch) {
+                var next = current + ch;
+                if (current && ctx.measureText(next).width > maxWidth) lines.push(current), current = ch;
+                else current = next
+            });
+            current && (lines.push(current), current = "")
+        });
+        lines.length || lines.push("未命名");
+        if (lines.length > 5) lines = lines.slice(0, 5), lines[4] = lines[4].replace(/.{1,3}$/, "…");
+        var lineHeight = 76,
+            startY = canvas.height / 2 - (lines.length - 1) * lineHeight / 2;
+        lines.forEach(function(line, index) { ctx.fillText(line, canvas.width / 2, startY + index * lineHeight, maxWidth) });
+        return canvas.toDataURL("image/png")
+    }
+
+    function nlExportImageExtension(dataUrl) {
+        var match = String(dataUrl || "").match(/^data:image\/([a-zA-Z0-9.+-]+)[;,]/),
+            type = match && match[1] ? match[1].toLowerCase() : "image";
+        return type === "jpeg" ? "jpg" : type === "svg+xml" ? "svg" : type.replace(/[^a-z0-9]/g, "") || "image"
+    }
+    var nlPendingExportFile = null;
+
+    function nlZipCrc32(bytes) {
+        var crc = -1;
+        for (var i = 0; i < bytes.length; i++) {
+            crc ^= bytes[i];
+            for (var bit = 0; bit < 8; bit++) crc = crc >>> 1 ^ (crc & 1 ? 3988292384 : 0)
+        }
+        return (crc ^ -1) >>> 0
+    }
+
+    function nlZipUint16(value) {
+        return new Uint8Array([value & 255, value >>> 8 & 255])
+    }
+
+    function nlZipUint32(value) {
+        return new Uint8Array([value & 255, value >>> 8 & 255, value >>> 16 & 255, value >>> 24 & 255])
+    }
+
+    async function nlCreateSingleFileZip(filename, text) {
+        var encoder = new TextEncoder,
+            nameBytes = encoder.encode(filename),
+            source = encoder.encode(text),
+            compressed = source,
+            method = 0;
+        if ("CompressionStream" in window) try {
+            var stream = new Blob([source]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+            compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+            method = 8
+        } catch (e) {}
+        var now = new Date,
+            dosTime = (now.getHours() << 11 | now.getMinutes() << 5 | now.getSeconds() / 2) & 65535,
+            dosDate = (Math.max(1980, now.getFullYear()) - 1980 << 9 | now.getMonth() + 1 << 5 | now.getDate()) & 65535,
+            crc = nlZipCrc32(source),
+            localHeader = new Blob([
+                nlZipUint32(67324752), nlZipUint16(20), nlZipUint16(2048), nlZipUint16(method),
+                nlZipUint16(dosTime), nlZipUint16(dosDate), nlZipUint32(crc),
+                nlZipUint32(compressed.length), nlZipUint32(source.length),
+                nlZipUint16(nameBytes.length), nlZipUint16(0), nameBytes
+            ]),
+            centralHeader = new Blob([
+                nlZipUint32(33639248), nlZipUint16(20), nlZipUint16(20), nlZipUint16(2048),
+                nlZipUint16(method), nlZipUint16(dosTime), nlZipUint16(dosDate), nlZipUint32(crc),
+                nlZipUint32(compressed.length), nlZipUint32(source.length),
+                nlZipUint16(nameBytes.length), nlZipUint16(0), nlZipUint16(0), nlZipUint16(0),
+                nlZipUint16(0), nlZipUint32(0), nlZipUint32(0), nameBytes
+            ]),
+            centralOffset = localHeader.size + compressed.length,
+            end = new Blob([
+                nlZipUint32(101010256), nlZipUint16(0), nlZipUint16(0), nlZipUint16(1),
+                nlZipUint16(1), nlZipUint32(centralHeader.size), nlZipUint32(centralOffset), nlZipUint16(0)
+            ]);
+        return new Blob([localHeader, compressed, centralHeader, end], { type: "application/zip" })
+    }
+
+    async function nlDownloadExportFile(name, content, mimeType, preferSystemSave) {
+        var blob = content instanceof Blob ? content : new Blob([content], { type: mimeType || "application/octet-stream" }),
+            file = null;
+        nlPendingExportFile = { name: name, blob: blob, mimeType: blob.type, expires: Date.now() + 120000 };
+        try { file = new File([blob], name, { type: blob.type }) } catch (e) {}
+        if (preferSystemSave) {
+            try {
+                if (window.showSaveFilePicker) {
+                    var handle = await window.showSaveFilePicker({
+                        suggestedName: name,
+                        types: [{ description: "ZIP 压缩包", accept: { "application/zip": [".zip"] } }]
+                    }), writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    nlPendingExportFile = null;
+                    return "saved"
+                }
+            } catch (e) {
+                if (e && "AbortError" === e.name) throw new Error("已取消保存")
+            }
+            try {
+                if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: "NAI 画廊导出", text: "请选择保存到文件或发送到其他应用" });
+                    nlPendingExportFile = null;
+                    return "shared"
+                }
+            } catch (e) {
+                if (e && "AbortError" === e.name) throw new Error("已取消保存或分享")
+            }
+        }
+        var url = URL.createObjectURL(blob),
+            a = s.createElement("a");
+        a.href = url;
+        a.download = name;
+        a.rel = "noopener";
+        a.style.display = "none";
+        s.body.appendChild(a);
+        a.click();
+        setTimeout(function() { a.remove(); URL.revokeObjectURL(url) }, 10000);
+        return "download"
+    }
+
+    async function nlRunGalleryExport(btn) {
+        if (btn && btn.disabled) return;
+        if (nlPendingExportFile && nlPendingExportFile.expires > Date.now()) {
+            var pending = nlPendingExportFile;
+            if (btn) {
+                btn.disabled = !0;
+                btn.textContent = "正在打开保存..."
+            }
+            try {
+                var mode = await nlDownloadExportFile(pending.name, pending.blob, pending.mimeType, !0);
+                E(("shared" === mode ? "已打开系统保存/分享面板" : "saved" === mode ? "文件已保存" : "已再次请求浏览器下载") + "：" + pending.name, "success", 5000)
+            } catch (err) {
+                E("保存失败：" + (err && err.message || err), "error", 5000)
+            } finally {
+                if (btn) {
+                    btn.disabled = !1;
+                    btn.textContent = nlPendingExportFile ? "再次点击保存" : "一键导出"
+                }
+            }
+            return
+        }
+        nlPendingExportFile = null;
+        var oldText = btn && btn.textContent,
+            result = null;
+        if (btn) {
+            btn.disabled = !0;
+            btn.textContent = "正在导出...";
+            btn.setAttribute("aria-busy", "true")
+        }
+        E("正在整理收藏、图片和 Vibe 数据，通常需要 5–30 秒，请稍候", "info");
+        await new Promise(function(resolve) { setTimeout(resolve, 50) });
+        try {
+            result = await nlExportGalleryPackage();
+            return result
+        } catch (err) {
+            E("导出失败：" + (err && err.message || err), "error", 5000);
+            throw err
+        } finally {
+            if (btn) {
+                btn.disabled = !1;
+                btn.textContent = result && "download" === result.saveMode && nlPendingExportFile ? "再次点击保存" : oldText || "一键导出";
+                btn.title = nlPendingExportFile ? "如果没有自动下载，请再次点击打开系统保存" : "一键导出";
+                btn.removeAttribute("aria-busy")
+            }
+        }
+    }
+
+    async function nlExportGalleryPackage() {
+        var entries = await I.all(),
+            st = W() || {},
+            vibePresets = st.vibePresets || {},
+            vibeGroups = st.vibeGroups || {},
+            vibeMap = {},
+            missingVibeIds = {};
+        for (var name of Object.keys(vibePresets)) {
+            var vp = vibePresets[name];
+            if (!vp || !vp.vibeDataId) continue;
+            var stored = null;
+            try { stored = await D(vp.vibeDataId) } catch (e) {}
+            if (!stored || !stored.data) missingVibeIds[vp.vibeDataId] = true;
+            vibeMap[vp.vibeDataId] = {
+                id: vp.vibeDataId,
+                name: name,
+                model: vp.model || "",
+                strength: "number" == typeof vp.strength ? vp.strength : .6,
+                thumbnail: vp.thumbnail || "",
+                imageId: vp.imageId || null,
+                data: stored && stored.data || "",
+                type: stored && stored.type || "text"
+            }
+        }
+        var gallery = entries.map(function(ent) {
+            var refs = [];
+            if (ent.vibeEnabled && ent.vibeGroup && vibeGroups[ent.vibeGroup] && Array.isArray(vibeGroups[ent.vibeGroup].vibes)) {
+                refs = vibeGroups[ent.vibeGroup].vibes.map(function(slot) {
+                    var slotId = slot.vibeDataId || slot.vibe_data_id || "",
+                        v = vibeMap[slotId];
+                    if (!v && slotId) missingVibeIds[slotId] = true;
+                    return v ? { id: v.id, vibe_data_id: v.id, name: v.name, strength: "number" == typeof (ent.vibeStrengths || {})[v.id] ? ent.vibeStrengths[v.id] : slot.strength, data: v.data, type: v.type, thumbnail: v.thumbnail } : null
+                }).filter(Boolean)
+            }
+            var collectionId = String(ent.id || S()),
+                promptId = "prompt_" + collectionId,
+                imageId = "image_" + collectionId,
+                vibeGroupId = ent.vibeEnabled && ent.vibeGroup ? "vibe_group_" + ent.vibeGroup : "",
+                image = ent.thumb || nlExportTextImage(ent.name || "未命名");
+            return {
+                id: collectionId,
+                collection_id: collectionId,
+                image_id: imageId,
+                prompt_id: promptId,
+                title: ent.name || "未命名",
+                category: ["本地导入"],
+                positive_prompt: ent.positive || "",
+                negative_prompt: ent.negative || "",
+                params: ent.naiParams || {},
+                image: image,
+                image_data_url: image,
+                image_type: ent.thumb ? "data_url" : "generated_png_data_url",
+                image_mime: (image.match(/^data:(image\/[a-zA-Z0-9.+-]+)/) || [null, "image/" + nlExportImageExtension(image)])[1],
+                image_filename: collectionId + "." + nlExportImageExtension(image),
+                image_generated: !ent.thumb,
+                vibe_refs: refs,
+                vibe_group: ent.vibeEnabled ? ent.vibeGroup || "" : "",
+                vibe_group_id: vibeGroupId
+            }
+        });
+        var standalone = entries.filter(function(ent) { return !ent.thumb }).map(function(ent) { return ent.id }),
+            pkg = {
+                format: "nai-preset-switcher-gallery-export",
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                source: "nai-preset-switcher",
+                category: "本地导入",
+                collections: gallery.map(function(x) {
+                    return { id: x.collection_id, title: x.title, image_id: x.image_id, prompt_id: x.prompt_id, image_filename: x.image_filename, vibe_group_id: x.vibe_group_id }
+                }),
+                gallery: gallery,
+                images: gallery.map(function(x) { return { id: x.image_id, collection_id: x.collection_id, prompt_id: x.prompt_id, filename: x.image_filename, mime: x.image_mime, data_url: x.image_data_url, generated: !!x.image_generated } }),
+                prompts: gallery.map(function(x) { return { id: x.prompt_id, collection_id: x.collection_id, title: x.title, category: ["本地导入"], positive_prompt: x.positive_prompt, negative_prompt: x.negative_prompt, params: x.params, vibe_refs: x.vibe_refs, vibe_group_id: x.vibe_group_id } }),
+                vibes: Object.keys(vibeMap).map(function(id) {
+                    var v = vibeMap[id];
+                    return { id: v.id, name: v.name, model: v.model, strength: v.strength, image_id: v.imageId, thumbnail: v.thumbnail, data: v.data, type: v.type, missing: !v.data }
+                }),
+                vibe_groups: Object.keys(vibeGroups).map(function(name) {
+                    var group = vibeGroups[name] || {};
+                    return {
+                        id: "vibe_group_" + name,
+                        name: name,
+                        vibes: (Array.isArray(group.vibes) ? group.vibes : []).map(function(slot) {
+                            return {
+                                vibe_data_id: slot.vibeDataId || slot.vibe_data_id || "",
+                                strength: "number" == typeof slot.strength ? slot.strength : null
+                            }
+                        }).filter(function(slot) { return !!slot.vibe_data_id })
+                    }
+                }),
+                generated_placeholder_ids: standalone,
+                missing_vibe_ids: Object.keys(missingVibeIds),
+                import_notes: ["images.data_url 为离线导入图片内容", "image_id、prompt_id、collection_id 和 vibe_data_id 用于保持引用关系"]
+            };
+        var baseName = "nai-gallery-local-import-" + Date.now(),
+            jsonFilename = baseName + ".json",
+            filename = baseName + ".zip",
+            zipBlob = await nlCreateSingleFileZip(jsonFilename, JSON.stringify(pkg, null, 2)),
+            saveMode = await nlDownloadExportFile(filename, zipBlob, "application/zip"),
+            saveText = "shared" === saveMode ? "已打开系统保存/分享面板" : "saved" === saveMode ? "文件已保存" : "已请求浏览器下载";
+        E(saveText + "：" + filename + "；解压后包含 1 个 JSON 文件；包含 " + gallery.length + " 个收藏、" + Object.keys(vibeMap).length + " 个 Vibe" + (Object.keys(missingVibeIds).length ? "；有 " + Object.keys(missingVibeIds).length + " 个 Vibe 数据缺失" : ""), Object.keys(missingVibeIds).length ? "warning" : "success", 5000);
+        return { filename: filename, count: gallery.length, vibeCount: Object.keys(vibeMap).length, saveMode: saveMode }
     }
     async function z(e) {
         const t = await q();
@@ -2044,6 +2400,7 @@
                 sel.value = cg || "";
                 fields.innerHTML = nlRenderParamFieldInputs("nl-set-pf-", gs[cg] && gs[cg].params || nlReadAllNaiParams());
                 bindFields();
+                nlSyncExportButtonSize(fields, "nl-set-pf-");
             }
             function saveApply(ev){
                 var cg = cur();
@@ -2057,6 +2414,13 @@
                 fields.querySelectorAll("[data-pf]").forEach(function(el) {
                     ["input", "change"].forEach(function(ev) {
                         el.addEventListener(ev, saveApply)
+                    })
+                });
+                fields.querySelectorAll("[data-nl-export]").forEach(function(btn) {
+                    btn.addEventListener("click", async function(ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        try { await nlRunGalleryExport(btn) } catch (err) {}
                     })
                 });
             }
@@ -2307,7 +2671,7 @@
         }).join("") + '</div><div class="nl-empty" id="nl-search-empty" style="display:none;">没有匹配的预设</div>' : '<div class="nl-empty">还没有收藏，去"导入预设"标签添加吧</div>', t.innerHTML = `
 <div style="margin-bottom:10px;"><div class="nl-chips" id="nl-filter">${j}</div>
 </div>
-<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;"><div class="nl-search-wrap"><input type="text" class="nl-search" id="nl-search-input" placeholder="搜索名称或提示词..." value="${k(u)}"></div><span class="nl-viewtoggle" id="nl-viewtoggle" title="${"grid"===v?"列表视图":"网格视图"}">${"grid"===v?"☰":"☷"}</span><span class="nl-viewtoggle" id="nl-randpick" title="随机抽取">⚄</span><span class="nl-viewtoggle" id="nl-multisel-btn" title="多选" style="${b?"background:var(--nl-accent);color:#fff;border-color:var(--nl-accent);":""}">${b?"✕":"☑"}</span>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;"><div class="nl-search-wrap"><input type="text" class="nl-search" id="nl-search-input" placeholder="搜索名称或提示词..." value="${k(u)}"></div><span class="nl-viewtoggle" id="nl-viewtoggle" title="${"grid"===v?"列表视图":"网格视图"}">${"grid"===v?"☰":"☷"}</span><span class="nl-viewtoggle" id="nl-randpick" title="随机抽取">⚄</span><span class="nl-viewtoggle" id="nl-export-btn" title="导出画廊联动包">⇩</span><span class="nl-viewtoggle" id="nl-multisel-btn" title="多选" style="${b?"background:var(--nl-accent);color:#fff;border-color:var(--nl-accent);":""}">${b?"✕":"☑"}</span>
 </div>
 ${b?'<div class="nl-multibar" id="nl-multibar"><span style="font-size:13px;color:#566472;" id="nl-selcount">已选 0 项</span><button class="nl-btn ghost" id="nl-sel-all" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">全选</button><button class="nl-btn ghost" id="nl-sel-tag" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">改标签</button><button class="nl-btn ghost" id="nl-sel-auto" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">自动分类</button><button class="nl-btn danger" id="nl-sel-del" style="font-size:12px!important;padding:6px 7px!important;min-height:30px!important;line-height:1.1!important;box-sizing:border-box!important;">删除</button></div>':""}
 ${q}`;
@@ -2679,6 +3043,8 @@ ${q}`;
                 card.addEventListener("pointercancel", endFn);
             });
         })();
+        var EX = t.querySelector("#nl-export-btn");
+EX && EX.remove();
         var D = t.querySelector("#nl-multisel-btn");
         if (D && D.addEventListener("click", () => {
                 b = !b, g.clear(), R(!1)
@@ -3043,6 +3409,7 @@ ${q}`;
                 var groups = nlGetParamGroups(), cg = curGroup(), g = groups[cg], params = g && g.params || {};
                 pf.innerHTML = nlRenderParamFieldInputs("nl-dparam-pf-", params);
                 bindFields();
+                nlSyncExportButtonSize(pf, "nl-dparam-pf-");
             }
             async function saveAndApply(ev){
                 var sg = curGroup();
@@ -3055,13 +3422,20 @@ ${q}`;
                 await I.put(n);
                 nlApplyParamGroup(sg);
             }
-            function bindFields(){
-                pf.querySelectorAll("[data-pf]").forEach(function(el){
-                    ["input", "change"].forEach(function(ev){
-                        el.addEventListener(ev, saveAndApply)
+function bindFields(){
+                    pf.querySelectorAll("[data-pf]").forEach(function(el){
+                        ["input", "change"].forEach(function(ev){
+                            el.addEventListener(ev, saveAndApply)
+                        })
+                    });
+                    pf.querySelectorAll("[data-nl-export]").forEach(function(btn){
+                        btn.addEventListener("click", async function(ev){
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            try { await nlRunGalleryExport(btn) } catch (err) {}
+                        })
                     })
-                })
-            }
+                }
             fillGroupSel(); fillFields();
             pg.addEventListener("change", async function(){
                 n.naiParamGroup = pg.value;
