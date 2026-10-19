@@ -1,13 +1,13 @@
 {
-  "display_name": "NAI切换助手",
-  "loading_order": 100,
-  "requires": [],
-  "optional": [],
-  "dependencies": [],
-  "js": "index.js",
-  "css": "",
-  "author": "毫无疑问你就是我的天使",
-  "version": "1.4.6",
-  "homePage": "https://github.com/Lucia-tteok/nai-preset-switcher",
-  "changelog": "v1.4.6\n更新内容：\n1. 新增 NAI 5 相关适配，优化模型参数识别、数据处理与使用兼容性。\n2. 新增导出功能：支持将图片、提示词、Vibe 等内容打包为单个 ZIP 文件导出，并可导入到 VV 老师的网站中使用。\n   网站链接：https://glassgallery.space/\n3. 优化部分交互细节与稳定性，修复若干已知问题。"
+    "display_name": "NAI切换助手",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "dependencies": [],
+    "js": "index.js",
+    "css": "",
+    "author": "毫无疑问你就是我的天使",
+    "version": "1.4.7",
+    "homePage": "https://github.com/Lucia-tteok/nai-preset-switcher",
+    "changelog": "v1.4.7\n更新内容：\n- 新增迁移包导入功能：支持从 ZIP 或 JSON 中恢复画师串、预览图、Vibe、Vibe 组、分类标签与参数设置，方便跨设备迁移。\n- 新增悬浮球自定义图片，可随时恢复显示当前预设的预览图。\n- 自动随机画师串时改为静默切换，不再反复弹出预设切换提醒。\n- 优化部分交互细节与稳定性，修复若干已知问题。"
 }
